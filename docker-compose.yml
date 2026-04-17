@@ -1,0 +1,28 @@
+services:
+  resume-analyzer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: smart-resume-ai
+    ports:
+      - "8501:8501"
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1
+      # All SQLite databases are stored inside /app/data so a single directory
+      # volume keeps them persistent across container restarts
+      - DATA_DIR=/app/data
+    volumes:
+      - app_data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  app_data:
