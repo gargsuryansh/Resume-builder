@@ -6,10 +6,14 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-# Explicit Route Imports to avoid any module resolution issues
+# Explicit Route Imports
 from api.routes.resume import router as resume_router
 from api.routes.candidate import router as candidate_router
 from api.routes.auth import router as auth_router
+from api.routes.jobs import router as jobs_router
+from api.routes.builder import router as builder_router
+from api.routes.dashboard import router as dashboard_router
+from api.routes.feedback import router as feedback_router
 
 # Setup Logging
 logging.basicConfig(level=logging.INFO)
@@ -35,7 +39,7 @@ app = FastAPI(
 # CORS Middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"], 
+    allow_origins=["http://localhost:5173"], # React Dev Server
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -55,11 +59,12 @@ def health_check():
     return {"status": "healthy"}
 
 # Include Modular Routers
-# Note: Auth routes are mounted with prefix="/auth" as requested.
-# Swagger UI will display them under the "Authentication" tag.
 app.include_router(auth_router, prefix="/auth")
 app.include_router(resume_router)
 app.include_router(candidate_router)
+app.include_router(jobs_router)
+app.include_router(builder_router)
+app.include_router(dashboard_router)
+app.include_router(feedback_router)
 
-# Note: Ensure that the 'auth_router' in api/routes/auth.py 
-# does NOT have its own prefix to avoid double-prefixing.
+# Note: Feedback system and OpenRouter-ready analyzer are now active.

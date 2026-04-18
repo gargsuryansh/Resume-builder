@@ -351,12 +351,73 @@ class AIResumeAnalyzer:
             logger.error(f"Structured extraction failed: {e}")
             return {"error": str(e)}
 
-    def analyze_resume_with_anthropic(self, resume_text, job_description=None, job_role=None):
-        """Placeholder: Streamlit references Claude; implement when OpenRouter/Anthropic is wired."""
-        return {
-            "error": "Anthropic Claude analysis is not implemented in this build.",
-            "model_used": "Anthropic Claude",
-        }
+    def analyze_resume_with_openrouter(self, resume_text, model_name="anthropic/claude-3-haiku", job_description=None):
+        """
+        Analyze resume using OpenRouter (Claude, GPT-4, etc.).
+        """
+        if not self.openrouter_api_key:
+            return {"error": "OpenRouter API key not configured"}
+
+        prompt = f"Analyze this resume:\n{resume_text}"
+        if job_description:
+            prompt += f"\nAgainst this JD:\n{job_description}"
+        
+        prompt += "\n\nProvide Strengths, Weaknesses, and an ATS Score (0-100)."
+
+        try:
+            response = requests.post(
+                url="https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {self.openrouter_api_key}",
+                    "Content-Type": "application/json"
+                },
+                data=json.dumps({
+                    "model": model_name,
+                    "messages": [{"role": "user", "content": prompt}]
+                })
+            )
+            data = response.json()
+            analysis = data['choices'][0]['message']['content']
+            return {
+                "analysis": analysis,
+                "ats_score": self._extract_score_from_text(analysis),
+                "model_used": model_name
+            }
+        except Exception as e:
+            return {"error": str(e)}
+
+    def _extract_score_from_text(self, text):
+        """Extract a numerical score from text using regex."""
+        match = re.search(r'(\d{1,3})/100', text)
+        if match:
+            return int(match.group(1))
+        # Fallback for just digits
+        match = re.search(r'Score:\s*(\d{1,3})', text)
+        return int(match.group(1)) if match else 0
+
+    def calculate_section_scores(self, structured_data: dict) -> dict:
+        """
+        Calculate quality scores for individual resume sections.
+        """
+        scores = {}
+        
+        # Education Score
+        edu = structured_data.get("education", [])
+        scores["Education"] = min(100, len(edu) * 40) # 40 points per item, max 100
+        
+        # Experience Score
+        exp = structured_data.get("experience", [])
+        scores["Experience"] = min(100, len(exp) * 25) # 25 points per job
+        
+        # Skills Score
+        skills = structured_data.get("skills", [])
+        scores["Skills"] = min(100, len(skills) * 10) # 10 points per skill
+        
+        # Summary Score
+        summ = structured_data.get("summary", "")
+        scores["Summary"] = 100 if summ and len(summ) > 50 else 0
+        
+        return scores
 
     
     def generate_pdf_report(self, analysis_result, candidate_name, job_role):

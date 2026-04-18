@@ -13,8 +13,10 @@ class UserLogin(BaseModel):
     email: EmailStr
     password: str
 
+from uuid import UUID
+
 class UserResponse(UserBase):
-    id: str
+    id: UUID
     class Config:
         from_attributes = True
 
