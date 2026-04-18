@@ -2,7 +2,7 @@ import time
 import numpy as np
 import pandas as pd
 import streamlit as st
-from streamlit_extras.add_vertical_space import add_vertical_space
+# from streamlit_extras.add_vertical_space import add_vertical_space (Removed)
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
@@ -12,6 +12,7 @@ warnings.filterwarnings('ignore')
 
 # Import our custom webdriver utility
 from .webdriver_utils import setup_webdriver
+from .bot_assistant import LinkedInBot
 
 class LinkedInScraper:
     """Class for scraping job listings from LinkedIn"""
@@ -25,7 +26,7 @@ class LinkedInScraper:
     @staticmethod
     def get_user_input(show_title=True):
         """Get user input for job search parameters"""
-        add_vertical_space(1)
+        st.markdown("<br>", unsafe_allow_html=True)
         
         # Apply custom styling for the form
         if show_title:
@@ -84,13 +85,13 @@ class LinkedInScraper:
                 )
 
             # Submit Button
-            add_vertical_space(1)
+            st.markdown("<br>", unsafe_allow_html=True)
             submit = st.form_submit_button(
                 label='Search LinkedIn Jobs',
                 type='primary',
                 use_container_width=True
             )
-            add_vertical_space(1)
+            st.markdown("<br>", unsafe_allow_html=True)
         
         if show_title:
             st.markdown('</div>', unsafe_allow_html=True)
@@ -584,7 +585,23 @@ class LinkedInScraper:
             # Job description in expander with better formatting
             with st.expander("View Job Description"):
                 st.markdown(description)
-                st.markdown(f"<a href='{url}' target='_blank' class='job-url-button'>Apply on LinkedIn</a>", unsafe_allow_html=True)
+                
+                col_btn1, col_btn2 = st.columns(2)
+                with col_btn1:
+                    st.markdown(f"<a href='{url}' target='_blank' class='job-url-button' style='width:100%; text-align:center;'>Apply on LinkedIn</a>", unsafe_allow_html=True)
+                
+                with col_btn2:
+                    if st.button("✨ Auto-Fill with Profile", key=f"autofill_{i}"):
+                        if 'candidate_profile' not in st.session_state:
+                            st.error("Please analyze your resume first to build your application profile!")
+                        else:
+                            with st.spinner("Launching Application Assistant..."):
+                                bot_driver = setup_webdriver() # We might want a non-headless one here
+                                if bot_driver:
+                                    bot = LinkedInBot(bot_driver, st.session_state.candidate_profile)
+                                    bot.fill_easy_apply(url)
+                                    # Note: We don't quit the driver immediately so the user can see it
+                                    # driver.quit() would normally go here if it was background
             
             st.markdown("<hr>", unsafe_allow_html=True)
 
@@ -635,8 +652,8 @@ class LinkedInScraper:
                                 st.warning("Could not retrieve job descriptions. Try different search terms.")
                                 return
                         
-                        # Display results
-                        LinkedInScraper.display_data_userinterface(df_final)
+                        # Save results to session state so they persist when buttons are clicked
+                        st.session_state['linkedin_scraped_jobs'] = df_final
                         
                     except Exception as e:
                         st.error(f"An error occurred: {str(e)}")
@@ -647,6 +664,10 @@ class LinkedInScraper:
                     
                 elif not job_location:
                     st.warning("Please enter a job location to search.")
+            
+            # Display results if they exist in session state
+            if 'linkedin_scraped_jobs' in st.session_state and not st.session_state['linkedin_scraped_jobs'].empty:
+                LinkedInScraper.display_data_userinterface(st.session_state['linkedin_scraped_jobs'])
                     
         except Exception as e:
             st.error(f"An unexpected error occurred: {str(e)}")

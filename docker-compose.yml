@@ -11,17 +11,21 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - PYTHONDONTWRITEBYTECODE=1
-      # Using PostgreSQL (Neon DB) as primary database
-      # Connection details managed via .env
+      - SELENIUM_URL=http://selenium:4444/wd/hub
     volumes:
       - ./.env:/app/.env
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
+    depends_on:
+      - selenium
+
+  selenium:
+    image: seleniarm/standalone-chromium:latest
+    container_name: smart-resume-selenium
+    ports:
+      - "4444:4444"
+      - "7900:7900"
+    shm_size: 2gb
+    restart: unless-stopped
 
 volumes:
   app_data:
