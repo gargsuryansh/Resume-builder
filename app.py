@@ -6,9 +6,8 @@ from PIL import Image
 from jobs.job_search import render_job_search
 from datetime import datetime
 from ui_components import (
-    apply_modern_styles, hero_section, feature_card, about_section,
-    page_header, render_analytics_section, render_activity_section,
-    render_suggestions_section
+    apply_modern_styles, hero_section, feature_card,
+    page_header, render_analytics_section
 )
 from feedback.feedback import FeedbackManager
 from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -25,7 +24,7 @@ from config.job_roles import JOB_ROLES
 from config.database import (
     get_database_connection, save_resume_data, save_analysis_data,
     init_database, verify_admin, log_admin_action, save_ai_analysis_data,
-    get_ai_analysis_stats, reset_ai_analysis_stats, get_detailed_ai_analysis_stats
+    get_detailed_ai_analysis_stats
 )
 from utils.ai_resume_analyzer import AIResumeAnalyzer
 from utils.resume_builder import ResumeBuilder
@@ -83,6 +82,7 @@ class ResumeApp:
             "🔍 RESUME ANALYZER": self.render_analyzer,
             "📝 RESUME BUILDER": self.render_builder,
             "📊 DASHBOARD": self.render_dashboard,
+            "🤝 RECRUITERS": self.render_recruiter_page,
             "🎯 JOB SEARCH": self.render_job_search,
             "💬 FEEDBACK": self.render_feedback_page,
             "ℹ️ ABOUT": self.render_about
@@ -592,17 +592,20 @@ class ResumeApp:
         return False
 
     def render_builder(self):
-        st.title("Resume Builder 📝")
-        st.write("Create your professional resume")
+        page_header(
+            "Precision Builder",
+            "Craft your professional story with AI-optimized templates"
+        )
 
         # Template selection
-        template_options = ["Modern", "Professional", "Minimal", "Creative"]
-        selected_template = st.selectbox(
-    "Select Resume Template", template_options)
-        st.success(f"🎨 Currently using: {selected_template} Template")
+        with st.container():
+            st.markdown('<div class="glass-card" style="margin-bottom: 2rem;">', unsafe_allow_html=True)
+            template_options = ["Modern", "Professional", "Minimal", "Creative"]
+            selected_template = st.selectbox("Select Your Visual Identity", template_options)
+            st.markdown('</div>', unsafe_allow_html=True)
 
         # Personal Information
-        st.subheader("Personal Information")
+        st.markdown('<h3 style="color: var(--primary); margin-bottom: 1rem;">👤 Personal Information</h3>', unsafe_allow_html=True)
 
         col1, col2 = st.columns(2)
         with col1:
@@ -1405,93 +1408,70 @@ class ResumeApp:
                             st.error(f"⚠️ This appears to be a {analysis['document_type']} document, not a resume!")
                             st.warning(
                                 "Please upload a proper resume for ATS analysis.")
-                            return
-                        # Display results in a modern card layout
-                    col1, col2 = st.columns(2)
+                                       # Display results in a modern card layout
+                    col_res1, col_res2 = st.columns(2)
 
-                    with col1:
+                    with col_res1:
                         # ATS Score Card with circular progress
-                        st.markdown("""
-                        <div class="feature-card">
-                            <h2>ATS Score</h2>
-                            <div style="position: relative; width: 150px; height: 150px; margin: 0 auto;">
-                                <div style="
-                                    position: absolute;
-                                    width: 150px;
-                                    height: 150px;
-                                    border-radius: 50%;
-                                    background: conic-gradient(
-                                        #4CAF50 0% {score}%,
-                                        #2c2c2c {score}% 100%
-                                    );
-                                    display: flex;
-                                    align-items: center;
-                                    justify-content: center;
-                                ">
-                                    <div style="
-                                        width: 120px;
-                                        height: 120px;
-                                        background: #1a1a1a;
-                                        border-radius: 50%;
-                                        display: flex;
-                                        align-items: center;
-                                        justify-content: center;
-                                        font-size: 24px;
-                                        font-weight: bold;
-                                        color: {color};
-                                    ">
-                                        {score}
-                                    </div>
+                        st.markdown(f"""
+                        <div class="glass-card" style="text-align: center; padding: 2.5rem;">
+                            <h2 style="color: var(--text-main); margin-bottom: 2rem;">ATS Score</h2>
+                            <div style="position: relative; width: 200px; height: 200px; margin: 0 auto; display: flex; align-items: center; justify-content: center;">
+                                <svg viewBox="0 0 100 100" style="width: 100%; height: 100%; transform: rotate(-90deg);">
+                                    <circle cx="50" cy="50" r="45" fill="none" stroke="var(--border-glass)" stroke-width="8" />
+                                    <circle cx="50" cy="50" r="45" fill="none" stroke="url(#ats-grad)" stroke-width="8" 
+                                            stroke-dasharray="282.7" stroke-dashoffset="{282.7 * (1 - analysis['ats_score']/100)}" 
+                                            style="transition: stroke-dashoffset 1.5s ease-out;" />
+                                    <defs>
+                                        <linearGradient id="ats-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+                                            <stop offset="0%" style="stop-color:var(--primary);stop-opacity:1" />
+                                            <stop offset="100%" style="stop-color:var(--primary-alt);stop-opacity:1" />
+                                        </linearGradient>
+                                    </defs>
+                                </svg>
+                                <div style="position: absolute; font-size: 3rem; font-weight: 800; color: var(--primary);">
+                                    {analysis['ats_score']}<span style="font-size: 1.2rem;">%</span>
                                 </div>
                             </div>
-                            <div style="text-align: center; margin-top: 10px;">
-                                <span style="
-                                    font-size: 1.2em;
-                                    color: {color};
-                                    font-weight: bold;
-                                ">
-                                    {status}
+                            <div style="margin-top: 1.5rem; padding: 0.5rem 1.5rem; background: rgba(0, 242, 254, 0.1); border-radius: 50px; display: inline-block;">
+                                <span style="font-size: 1.1rem; color: var(--primary); font-weight: 700;">
+                                    {'EXCELLENT' if analysis['ats_score'] >= 80 else 'GOOD' if analysis['ats_score'] >= 60 else 'NEEDS WORK'}
                                 </span>
                             </div>
-                        """.format(
-                            score=analysis['ats_score'],
-                            color='#4CAF50' if analysis['ats_score'] >= 80 else '#FFA500' if analysis[
-                                'ats_score'] >= 60 else '#FF4444',
-                            status='Excellent' if analysis['ats_score'] >= 80 else 'Good' if analysis[
-                                'ats_score'] >= 60 else 'Needs Improvement'
-                        ), unsafe_allow_html=True)
-
+                        </div>
+                        """, unsafe_allow_html=True)
                         st.markdown("</div>", unsafe_allow_html=True)
 
                         # self.display_analysis_results(analysis_results)
 
                         # Skills Match Card
                         st.markdown("""
-                        <div class="feature-card">
-                            <h2>Skills Match</h2>
+                        <div class="glass-card" style="margin-top: 1.5rem;">
+                            <h3 style="color: var(--text-main);"><i class="fas fa-tags" style="color: var(--primary); margin-right: 10px;"></i> Skills Match</h3>
                         """, unsafe_allow_html=True)
 
-                        st.metric(
-                            "Keyword Match", f"{int(analysis.get('keyword_match', {}).get('score', 0))}%")
+                        match_score = int(analysis.get('keyword_match', {}).get('score', 0))
+                        progress_bar(match_score, "Keyword Alignment")
 
                         if analysis['keyword_match']['missing_skills']:
-                            st.markdown("#### Missing Skills:")
-                            for skill in analysis['keyword_match']['missing_skills']:
-                                st.markdown(f"- {skill}")
+                            st.markdown('<p style="color: var(--error); font-weight: 600; margin-top: 1rem;">Missing Critical Skills:</p>', unsafe_allow_html=True)
+                            skills_html = "".join([f'<span style="background: rgba(239, 68, 68, 0.1); color: var(--error); padding: 4px 12px; border-radius: 50px; font-size: 0.8rem; margin: 4px; display: inline-block; border: 1px solid rgba(239, 68, 68, 0.2);">{s}</span>' for s in analysis['keyword_match']['missing_skills']])
+                            st.markdown(f'<div>{skills_html}</div>', unsafe_allow_html=True)
 
                         st.markdown("</div>", unsafe_allow_html=True)
 
-                    with col2:
+                    with col_res2:
                         # Format Score Card
                         st.markdown("""
-                        <div class="feature-card">
-                            <h2>Format Analysis</h2>
+                        <div class="glass-card">
+                            <h3 style="color: var(--text-main);"><i class="fas fa-tasks" style="color: var(--primary); margin-right: 10px;"></i> Format Analysis</h3>
                         """, unsafe_allow_html=True)
 
-                        st.metric("Format Score",
-                                  f"{int(analysis.get('format_score', 0))}%")
-                        st.metric("Section Score",
-                                  f"{int(analysis.get('section_score', 0))}%")
+                        fmt_score = int(analysis.get('format_score', 0))
+                        sec_score = int(analysis.get('section_score', 0))
+                        
+                        progress_bar(fmt_score, "Document Structure")
+                        progress_bar(sec_score, "Section Presence")
 
                         st.markdown("</div>", unsafe_allow_html=True)
 
@@ -2486,8 +2466,14 @@ class ResumeApp:
                                         
                                         st.plotly_chart(fig1, use_container_width=True)
                                         
-                                        status = "Excellent" if resume_score >= 80 else "Good" if resume_score >= 60 else "Needs Improvement"
-                                        st.markdown(f"<div style='text-align: center; font-weight: bold;'>{status}</div>", unsafe_allow_html=True)
+                                        # status = "Excellent" if resume_score >= 80 else "Good" if resume_score >= 60 else "Needs Improvement"
+                                        st.markdown(f"""
+                                            <div style="text-align: center; margin-top: 10px;">
+                                                <span style="background: rgba(0, 242, 254, 0.1); color: var(--primary); padding: 5px 15px; border-radius: 50px; font-weight: 700; font-size: 0.9rem; border: 1px solid rgba(0, 242, 254, 0.2);">
+                                                    {'EXCELLENT' if resume_score >= 80 else 'GOOD' if resume_score >= 60 else 'NEEDS WORK'}
+                                                </span>
+                                            </div>
+                                        """, unsafe_allow_html=True)
                                     
                                     with col2:
                                         # ATS Score Gauge
@@ -2495,36 +2481,40 @@ class ResumeApp:
                                             mode="gauge+number",
                                             value=ats_score,
                                             domain={'x': [0, 1], 'y': [0, 1]},
-                                            title={'text': "ATS Optimization Score", 'font': {'size': 16}},
+                                            title={'text': "ATS Optimization Score", 'font': {'size': 16, 'color': '#f8fafc'}},
                                             gauge={
-                                                'axis': {'range': [0, 100], 'tickwidth': 1},
-                                                'bar': {'color': "#4CAF50" if ats_score >= 80 else "#FFA500" if ats_score >= 60 else "#FF4444"},
-                                                'bgcolor': "white",
-                                                'borderwidth': 2,
-                                                'bordercolor': "gray",
+                                                'axis': {'range': [0, 100], 'tickwidth': 1, 'tickcolor': '#94a3b8'},
+                                                'bar': {'color': "#00f2fe"},
+                                                'bgcolor': "rgba(255,255,255,0.05)",
+                                                'borderwidth': 0,
                                                 'steps': [
-                                                    {'range': [0, 40], 'color': 'rgba(255, 68, 68, 0.2)'},
-                                                    {'range': [40, 60], 'color': 'rgba(255, 165, 0, 0.2)'},
-                                                    {'range': [60, 80], 'color': 'rgba(255, 214, 0, 0.2)'},
-                                                    {'range': [80, 100], 'color': 'rgba(76, 175, 80, 0.2)'}
+                                                    {'range': [0, 100], 'color': 'rgba(255,255,255,0.02)'}
                                                 ],
                                                 'threshold': {
-                                                    'line': {'color': "red", 'width': 4},
+                                                    'line': {'color': "var(--primary)", 'width': 4},
                                                     'thickness': 0.75,
-                                                    'value': 60
+                                                    'value': 100
                                                 }
                                             }
                                         ))
                                         
                                         fig2.update_layout(
                                             height=250,
+                                            paper_bgcolor='rgba(0,0,0,0)',
+                                            plot_bgcolor='rgba(0,0,0,0)',
+                                            font={'color': '#f8fafc'},
                                             margin=dict(l=20, r=20, t=50, b=20),
                                         )
                                         
                                         st.plotly_chart(fig2, use_container_width=True)
                                         
-                                        status = "Excellent" if ats_score >= 80 else "Good" if ats_score >= 60 else "Needs Improvement"
-                                        st.markdown(f"<div style='text-align: center; font-weight: bold;'>{status}</div>", unsafe_allow_html=True)
+                                        st.markdown(f"""
+                                            <div style="text-align: center; margin-top: 10px;">
+                                                <span style="background: rgba(79, 209, 197, 0.1); color: #4fd1c5; padding: 5px 15px; border-radius: 50px; font-weight: 700; font-size: 0.9rem; border: 1px solid rgba(79, 209, 197, 0.2);">
+                                                    {'OPTIMIZED' if ats_score >= 80 else 'AVERAGE' if ats_score >= 60 else 'POOR'}
+                                                </span>
+                                            </div>
+                                        """, unsafe_allow_html=True)
 
                                     # Add Job Description Match Score if custom job description was used
                                     if st.session_state.get('used_custom_job_desc', False) and custom_job_description:
@@ -2599,29 +2589,29 @@ class ResumeApp:
                                     
                                     # Replace section headers with styled headers
                                     section_styles = {
-                                        "## Overall Assessment": """<div class="report-section">
-                                            <h3 style="background: linear-gradient(90deg, #1e3a8a, #3b82f6); color: white; padding: 10px; border-radius: 5px;">
-                                                <i class="fas fa-chart-line"></i> Overall Assessment
+                                        "## Overall Assessment": """<div class="glass-card" style="margin-top: 2rem;">
+                                            <h3 style="color: var(--primary); margin-bottom: 1.5rem;">
+                                                <i class="fas fa-chart-line" style="margin-right: 15px;"></i> Overall Assessment
                                             </h3>
-                                            <div class="section-content">""",
+                                            <div style="color: var(--text-muted); line-height: 1.8;">""",
                                             
-                                        "## Professional Profile Analysis": """<div class="report-section">
-                                            <h3 style="background: linear-gradient(90deg, #047857, #10b981); color: white; padding: 10px; border-radius: 5px;">
-                                                <i class="fas fa-user-tie"></i> Professional Profile Analysis
+                                        "## Professional Profile Analysis": """<div class="glass-card" style="margin-top: 2rem;">
+                                            <h3 style="color: var(--secondary); margin-bottom: 1.5rem;">
+                                                <i class="fas fa-user-tie" style="margin-right: 15px;"></i> Professional Profile
                                             </h3>
-                                            <div class="section-content">""",
+                                            <div style="color: var(--text-muted); line-height: 1.8;">""",
                                             
-                                        "## Skills Analysis": """<div class="report-section">
-                                            <h3 style="background: linear-gradient(90deg, #4f46e5, #818cf8); color: white; padding: 10px; border-radius: 5px;">
-                                                <i class="fas fa-tools"></i> Skills Analysis
+                                        "## Skills Analysis": """<div class="glass-card" style="margin-top: 2rem;">
+                                            <h3 style="color: var(--primary-alt); margin-bottom: 1.5rem;">
+                                                <i class="fas fa-tools" style="margin-right: 15px;"></i> Skills Analysis
                                             </h3>
-                                            <div class="section-content">""",
+                                            <div style="color: var(--text-muted); line-height: 1.8;">""",
                                             
                                         "## Experience Analysis": """<div class="report-section">
-                                            <h3 style="background: linear-gradient(90deg, #9f1239, #e11d48); color: white; padding: 10px; border-radius: 5px;">
-                                                <i class="fas fa-briefcase"></i> Experience Analysis
+                                            <h3 style="color: var(--accent); margin-bottom: 1.5rem;">
+                                                <i class="fas fa-briefcase" style="margin-right: 15px;"></i> Experience Analysis
                                             </h3>
-                                            <div class="section-content">""",
+                                            <div style="color: var(--text-muted); line-height: 1.8;">""",
                                             
                                         "## Education Analysis": """<div class="report-section">
                                             <h3 style="background: linear-gradient(90deg, #854d0e, #eab308); color: white; padding: 10px; border-radius: 5px;">
@@ -2789,36 +2779,100 @@ class ResumeApp:
     def render_home(self):
         apply_modern_styles()
         
-        # Hero Section
+        # Premium Hero Section
         hero_section(
             "Smart Resume AI",
-            "Transform your career with AI-powered resume analysis and building. Get personalized insights and create professional resumes that stand out."
+            "THE FUTURE OF CAREER ACCELERATION",
+            "Leverage the power of Generative AI to decode your career potential. Analyze your resume with industry-leading accuracy and build professional profiles that get you hired at top-tier companies."
         )
         
-        # Features Section
-        st.markdown('<div class="feature-grid">', unsafe_allow_html=True)
-        
-        feature_card(
-            "fas fa-robot",
-            "AI-Powered Analysis",
-            "Get instant feedback on your resume with advanced AI analysis that identifies strengths and areas for improvement."
-        )
-        
-        feature_card(
-            "fas fa-magic",
-            "Smart Resume Builder",
-            "Create professional resumes with our intelligent builder that suggests optimal content and formatting."
-        )
-        
-        feature_card(
-            "fas fa-chart-line",
-            "Career Insights",
-            "Access detailed analytics and personalized recommendations to enhance your career prospects."
-        )
-        
-        st.markdown('</div>', unsafe_allow_html=True)
+        # Features Grid
+        col_f1, col_f2, col_f3 = st.columns(3)
+        with col_f1:
+            feature_card(
+                "fas fa-robot",
+                "Neural Analysis",
+                "Our advanced LLM-powered engine dissects every bullet point in your resume to ensure it matches specific job role requirements."
+            )
+        with col_f2:
+            feature_card(
+                "fas fa-magic",
+                "Precision Builder",
+                "Generate ATS-optimized resumes in seconds. Choose from professional templates designed to pass through any recruiter's system."
+            )
+        with col_f3:
+            feature_card(
+                "fas fa-handshake",
+                "Recruiter Direct",
+                "Enable recruiter visibility and get discovered by hiring managers looking for your specific skill set and expertise."
+            )
         
         st.toast("Check out these repositories: [AI-Nexus(AI/ML)](https://github.com/Hunterdii/AI-Nexus)", icon="ℹ️")
+
+    def render_recruiter_page(self):
+        """Render the new recruiter dashboard for candidate discovery"""
+        from ui_components import candidate_card
+        from config.database import get_candidates_for_recruiter_filter
+        
+        page_header(
+            "Recruiter Hub",
+            "Connect with top talent analyzed by our AI system"
+        )
+        
+        # Filters Sidebar/Header
+        with st.expander("🔍 Filter Candidates", expanded=True):
+            col1, col2, col3 = st.columns([2, 1, 1])
+            with col1:
+                search_skills = st.multiselect("Skills Required", 
+                    ["Python", "React", "Java", "SQL", "DevOps", "Machine Learning", "Data Science", "Marketing", "Finance"])
+            with col2:
+                search_location = st.text_input("Location (City/Remote)")
+            with col3:
+                min_score = st.slider("Min. ATS Score", 0, 100, 50)
+        
+        if st.button("Search Candidates", type="primary"):
+            with st.spinner("Finding matches..."):
+                candidates = get_candidates_for_recruiter_filter(
+                    skills=search_skills if search_skills else None,
+                    location=search_location if search_location else None,
+                    min_ats_score=min_score
+                )
+                
+                if not candidates:
+                    st.info("No candidates matching your criteria were found.")
+                else:
+                    st.write(f"Found {len(candidates)} matching candidates")
+                    
+                    # Responsive grid for candidates
+                    cols = st.columns(2)
+                    for idx, cand in enumerate(candidates):
+                        with cols[idx % 2]:
+                            candidate_card(
+                                name=cand['name'],
+                                role=cand['role'],
+                                skills=cand['skills'],
+                                location=cand['location'],
+                                score=int(cand['ats_score'] or 0),
+                                experience=cand['experience']
+                            )
+        else:
+            # Initial state - show recent top candidates
+            candidates = get_candidates_for_recruiter_filter(min_ats_score=70)
+            if candidates:
+                st.markdown("### 🔥 Top Analyzed Candidates")
+                cols = st.columns(2)
+                for idx, cand in enumerate(candidates[:6]):
+                    with cols[idx % 2]:
+                        candidate_card(
+                            name=cand['name'],
+                            role=cand['role'],
+                            skills=cand['skills'],
+                            location=cand['location'],
+                            score=int(cand['ats_score'] or 0),
+                            experience=cand['experience']
+                        )
+            else:
+                st.info("No candidates analyzed yet. Resumes uploaded by users will appear here.")
 
         # Call-to-Action with Streamlit navigation
         col1, col2, col3 = st.columns([1, 1, 1])

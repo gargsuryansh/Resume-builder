@@ -33,3 +33,4 @@ python-pptx
 matplotlib
 seaborn
 pypdf2
+psycopg2-binary
