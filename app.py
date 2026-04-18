@@ -7,7 +7,7 @@ from jobs.job_search import render_job_search
 from datetime import datetime
 from ui_components import (
     apply_modern_styles, hero_section, feature_card,
-    page_header, render_analytics_section
+    page_header, render_analytics_section, progress_bar
 )
 from feedback.feedback import FeedbackManager
 from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -1366,9 +1366,10 @@ class ResumeApp:
                         # Save resume data to database
                         resume_data = {
                             'personal_info': {
-                                'name': analysis.get('name', ''),
-                                'email': analysis.get('email', ''),
+                                'full_name': analysis.get('name', 'Unknown Candidate'),
+                                'email': analysis.get('email', 'No Email'),
                                 'phone': analysis.get('phone', ''),
+                                'location': '',
                                 'linkedin': analysis.get('linkedin', ''),
                                 'github': analysis.get('github', ''),
                                 'portfolio': analysis.get('portfolio', '')
@@ -2321,13 +2322,13 @@ class ResumeApp:
                         try:
                             # Show a loading animation
                             with st.spinner("🧠 AI is analyzing your resume..."):
-                                progress_bar = st.progress(0)
+                                ai_progress = st.progress(0)
                                 
                                 # Get the selected model
                                 selected_model = "Google Gemini"
                                 
                                 # Update progress
-                                progress_bar.progress(10)
+                                ai_progress.progress(10)
                                 
                                 # Extract text from the resume
                                 analyzer = AIResumeAnalyzer()
@@ -2342,13 +2343,13 @@ class ResumeApp:
                                     resume_text = uploaded_file.getvalue().decode('utf-8')
                                 
                                 # Initialize the AI analyzer (moved after text extraction)
-                                progress_bar.progress(30)
+                                ai_progress.progress(30)
                                 
                                 # Get the job role
                                 job_role = selected_role if selected_role else "Not specified"
                                 
                                 # Update progress
-                                progress_bar.progress(50)
+                                ai_progress.progress(50)
                                 
                                 # Analyze the resume with Google Gemini
                                 if use_custom_job_desc and custom_job_description:
@@ -2365,7 +2366,7 @@ class ResumeApp:
 
                                 
                                 # Update progress
-                                progress_bar.progress(80)
+                                ai_progress.progress(80)
                                 
                                 # Save the analysis to the database
                                 if analysis_result and "error" not in analysis_result:
@@ -2382,11 +2383,52 @@ class ResumeApp:
                                             "job_role": job_role
                                         }
                                     )
+                                    
+                                    # Sync candidate to Recruiter Hub
+                                    try:
+                                        # Use standard parser to extract personal details
+                                        parsed_data = self.analyzer.analyze_resume({'raw_text': resume_text}, role_info)
+                                        if parsed_data and 'error' not in parsed_data:
+                                            resume_data = {
+                                                'personal_info': {
+                                                    'full_name': parsed_data.get('name', 'AI User'),
+                                                    'email': parsed_data.get('email', ''),
+                                                    'phone': parsed_data.get('phone', ''),
+                                                    'location': '',
+                                                    'linkedin': parsed_data.get('linkedin', ''),
+                                                    'github': parsed_data.get('github', ''),
+                                                    'portfolio': parsed_data.get('portfolio', '')
+                                                },
+                                                'summary': parsed_data.get('summary', ''),
+                                                'target_role': job_role,
+                                                'target_category': selected_category,
+                                                'education': parsed_data.get('education', []),
+                                                'experience': parsed_data.get('experience', []),
+                                                'projects': parsed_data.get('projects', []),
+                                                'skills': parsed_data.get('skills', []),
+                                                'template': 'AI-Analyzed'
+                                            }
+                                            resume_id = save_resume_data(resume_data)
+                                            if resume_id:
+                                                ats_score = analysis_result.get("ats_score", resume_score)
+                                                hub_analysis_data = {
+                                                    'resume_id': resume_id,
+                                                    'ats_score': ats_score,
+                                                    'keyword_match_score': resume_score,
+                                                    'format_score': resume_score,
+                                                    'section_score': resume_score,
+                                                    'missing_skills': '',
+                                                    'recommendations': 'Reviewed via AI Analyzer'
+                                                }
+                                                save_analysis_data(resume_id, hub_analysis_data)
+                                    except Exception as db_err:
+                                        print(f"Failed to sync with Recruiter Hub: {db_err}")
+
                                 # show snowflake effect
                                 st.snow()
 
                                 # Complete the progress
-                                progress_bar.progress(100)
+                                ai_progress.progress(100)
                                 
                                 # Display the analysis result
                                 if analysis_result and "error" not in analysis_result:
