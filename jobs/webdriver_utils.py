@@ -133,13 +133,30 @@ def setup_webdriver():
         webdriver.Chrome or None: Configured Chrome webdriver or None if setup fails
     """
     options = Options()
-    options.add_argument('--headless')
+    # options.add_argument('--headless') # Removed headless so we can see the NoVNC stream
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--disable-gpu')
     options.add_argument('--window-size=1920,1080')
     options.add_argument('--disable-blink-features=AutomationControlled')
     options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36')
+    
+    # Enable persistent sessions so logins (like Google sign-in) are remembered
+    options.add_argument('--user-data-dir=/tmp/chrome_profile')
+    
+    # Method 0: Remote Webdriver (Docker environments)
+    selenium_url = os.environ.get('SELENIUM_URL')
+    if selenium_url:
+        try:
+            st.info("Connecting to Remote Selenium browser for Visual Auto-Apply...")
+            driver = webdriver.Remote(
+                command_executor=selenium_url,
+                options=options
+            )
+            return driver
+        except Exception as e:
+            st.error(f"Failed to connect to Remote Browser: {str(e)}")
+            # Fall back to local methods if remote fails
     
     # Method 1: Try direct initialization first since it's working
     try:

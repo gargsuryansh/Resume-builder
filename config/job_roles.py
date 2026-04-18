@@ -1,11 +1,11 @@
 JOB_ROLES = {
     "Software Development and Engineering": {
         "Frontend Developer": {
-            "required_skills": ["HTML", "CSS", "JavaScript", "React", "Angular", "Vue.js", "UI/UX", "Responsive Design"],
+            "required_skills": ["HTML", "CSS", "JavaScript", "UI/UX", "Responsive Design", "Web Performance"],
             "description": "Create user interfaces and implement visual elements",
             "sections": ["Technical Skills", "Projects", "Work Experience", "Education"],
             "recommended_skills": {
-                "technical": ["HTML5", "CSS3", "JavaScript", "React/Angular/Vue", "TypeScript", "Git"],
+                "technical": ["HTML5", "CSS3", "JavaScript", "React", "Angular", "Vue.js", "TypeScript", "Git"],
                 "soft": ["Communication", "Problem-solving", "Attention to detail", "Creativity"]
             }
         },

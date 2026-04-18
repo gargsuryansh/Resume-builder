@@ -84,6 +84,7 @@ class ResumeApp:
             "📊 DASHBOARD": self.render_dashboard,
             "🤝 RECRUITERS": self.render_recruiter_page,
             "🎯 JOB SEARCH": self.render_job_search,
+            "👤 MY PROFILE": self.render_profile_page,
             "💬 FEEDBACK": self.render_feedback_page,
             "ℹ️ ABOUT": self.render_about
         }
@@ -1311,7 +1312,7 @@ class ResumeApp:
                 # Add a prominent analyze button
                 analyze_standard = st.button("🔍 Analyze My Resume",
                                     type="primary",
-                                    use_container_width=True,
+                                    width='stretch',
                                     key="analyze_standard_button")
 
                 if analyze_standard:
@@ -1383,6 +1384,11 @@ class ResumeApp:
                             'skills': analysis.get('skills', []),
                             'template': ''
                         }
+                        
+                        # Store in session state for Job Scraper auto-filling
+                        st.session_state.candidate_profile = resume_data['personal_info']
+                        st.session_state.candidate_profile['skills'] = resume_data['skills']
+                        st.session_state.candidate_profile['experience_summary'] = resume_data['summary']
 
                         # Save to database
                         try:
@@ -2298,7 +2304,7 @@ class ResumeApp:
                 # Add a prominent analyze button
                 analyze_ai = st.button("🤖 Analyze with AI",
                                 type="primary",
-                                use_container_width=True,
+                                width='stretch',
                                 key="analyze_ai_button")
 
                 if analyze_ai:
@@ -2421,6 +2427,11 @@ class ResumeApp:
                                                     'recommendations': 'Reviewed via AI Analyzer'
                                                 }
                                                 save_analysis_data(resume_id, hub_analysis_data)
+                                                
+                                                # Store in session state for Job Scraper auto-filling
+                                                st.session_state.candidate_profile = resume_data['personal_info']
+                                                st.session_state.candidate_profile['skills'] = resume_data['skills']
+                                                st.session_state.candidate_profile['experience_summary'] = resume_data['summary']
                                     except Exception as db_err:
                                         print(f"Failed to sync with Recruiter Hub: {db_err}")
 
@@ -2803,7 +2814,7 @@ class ResumeApp:
                                             data=pdf_buffer,
                                             file_name=f"resume_analysis_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
                                             mime="application/pdf",
-                                            use_container_width=True,
+                                            width='stretch',
                                             on_click=lambda: st.balloons()
                                         )
                                     else:
@@ -2866,7 +2877,7 @@ class ResumeApp:
             col1, col2, col3 = st.columns([2, 1, 1])
             with col1:
                 search_skills = st.multiselect("Skills Required", 
-                    ["Python", "React", "Java", "SQL", "DevOps", "Machine Learning", "Data Science", "Marketing", "Finance"])
+                    ["Python", "JavaScript", "React", "Vue.js", "Angular", "Node.js", "Java", "SQL", "NoSQL", "Docker", "Kubernetes", "DevOps", "AWS", "Azure", "GCP", "Machine Learning", "Data Science", "UI/UX", "Project Management"])
             with col2:
                 search_location = st.text_input("Location (City/Remote)")
             with col3:
@@ -2898,12 +2909,13 @@ class ResumeApp:
                                 experience=cand['experience']
                             )
         else:
-            # Initial state - show recent top candidates
-            candidates = get_candidates_for_recruiter_filter(min_ats_score=70)
+            # Initial state - show all recent candidates
+            candidates = get_candidates_for_recruiter_filter(min_ats_score=0)
             if candidates:
-                st.markdown("### 🔥 Top Analyzed Candidates")
+                st.markdown("### 🌐 Talent Discovery")
+                st.write(f"Showing all {len(candidates)} active candidates")
                 cols = st.columns(2)
-                for idx, cand in enumerate(candidates[:6]):
+                for idx, cand in enumerate(candidates):
                     with cols[idx % 2]:
                         candidate_card(
                             name=cand['name'],
@@ -2922,10 +2934,65 @@ class ResumeApp:
             if st.button("Get Started", key="get_started_btn", 
                         help="Click to start analyzing your resume",
                         type="primary",
-                        use_container_width=True):
+                        width='stretch'):
                 cleaned_name = "🔍 RESUME ANALYZER".lower().replace(" ", "_").replace("🔍", "").strip()
                 st.session_state.page = cleaned_name
                 st.rerun()
+
+    def render_profile_page(self):
+        """Render the user's application profile for verification"""
+        page_header(
+            "My Application Profile",
+            "This data is used to auto-fill your job applications"
+        )
+        
+        if 'candidate_profile' not in st.session_state:
+            st.warning("No profile data found. Please analyze a resume first!")
+            return
+            
+        profile = st.session_state.candidate_profile
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("### 📝 Personal Details")
+            with st.container():
+                st.text_input("Full Name", value=profile.get('full_name', ''), key="prof_name")
+                st.text_input("Email", value=profile.get('email', ''), key="prof_email")
+                st.text_input("Phone", value=profile.get('phone', ''), key="prof_phone")
+                st.text_input("Location", value=profile.get('location', ''), key="prof_loc")
+        
+        with col2:
+            st.markdown("### 🔗 Links & Professional")
+            with st.container():
+                st.text_input("LinkedIn", value=profile.get('linkedin', ''), key="prof_link")
+                st.text_input("Portfolio", value=profile.get('portfolio', ''), key="prof_port")
+                
+                st.markdown("#### 🔒 LinkedIn Login (Required for Auto-Fill)")
+                st.text_input("LinkedIn Email", value=profile.get('li_email', ''), key="prof_li_email")
+                st.text_input("LinkedIn Password", value=profile.get('li_password', ''), type="password", key="prof_li_pass")
+                
+                st.text_area("Experience Summary", value=profile.get('experience_summary', ''), height=150, key="prof_sum")
+        
+        st.markdown("### 🛠️ Skills Extracted")
+        skills = profile.get('skills', [])
+        if isinstance(skills, str):
+            skills = [s.strip() for s in skills.split(',')]
+        
+        st.write(", ".join(skills) if skills else "No skills identified")
+        
+        if st.button("Save Profile Changes", type="primary"):
+            st.session_state.candidate_profile.update({
+                'full_name': st.session_state.prof_name,
+                'email': st.session_state.prof_email,
+                'phone': st.session_state.prof_phone,
+                'location': st.session_state.prof_loc,
+                'linkedin': st.session_state.prof_link,
+                'portfolio': st.session_state.prof_port,
+                'li_email': st.session_state.prof_li_email,
+                'li_password': st.session_state.prof_li_pass,
+                'experience_summary': st.session_state.prof_sum
+            })
+            st.success("Profile updated successfully!")
 
     def render_job_search(self):
         """Render the job search page"""
@@ -3000,7 +3067,7 @@ class ResumeApp:
             
             # Navigation buttons
             for page_name in self.pages.keys():
-                if st.button(page_name, use_container_width=True):
+                if st.button(page_name, width='stretch'):
                     cleaned_name = page_name.lower().replace(" ", "_").replace("🏠", "").replace("🔍", "").replace("📝", "").replace("📊", "").replace("🎯", "").replace("💬", "").replace("ℹ️", "").strip()
                     st.session_state.page = cleaned_name
                     st.rerun()
