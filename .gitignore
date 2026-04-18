@@ -1,4 +1,7 @@
 // filepath: /D:/GIST/Smart-AI-Resume-Analyzer/.gitignore
+frontend/node_modules/
+frontend/dist/
+
 __pycache__/
 *.py[cod]
 *$py.class

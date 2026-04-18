@@ -35,3 +35,6 @@ python-pptx
 matplotlib
 seaborn
 pypdf2
+
+# Phase 4 / local API checks
+pytest>=8.0.0

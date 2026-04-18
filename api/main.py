@@ -8,17 +8,25 @@ from __future__ import annotations
 
 import io
 import logging
+import os
+import tempfile
 from contextlib import asynccontextmanager
 from typing import Annotated, Any, Literal
 
-from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, UploadFile
+from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
-from pydantic import BaseModel, Field
+from fastapi.responses import FileResponse, Response
 
 from api.auth import create_access_token
 from api.dashboard_metrics import collect_dashboard_metrics
 from api.deps import get_current_admin_email
+from api.schemas import (
+    AdminLoginRequest,
+    AIAnalysisRequest,
+    AnalysisRequest,
+    Feedback,
+    ResumeData,
+)
 from config.database import (
     init_database,
     log_admin_action,
@@ -220,32 +228,57 @@ def _persist_standard_analysis(
     save_analysis_data(resume_id, analysis_data)
 
 
-class ResumeBuildRequest(BaseModel):
-    """Same shape as Streamlit ``resume_data`` passed to ``ResumeBuilder.generate_resume``."""
+def _form_to_analysis_request(
+    job_category: str = Form(
+        ...,
+        description="Job category key, e.g. 'Software Development and Engineering'",
+    ),
+    job_role: str = Form(..., description="Role key, e.g. 'Backend Developer'"),
+    save_to_db: bool = Form(
+        True,
+        description="Persist resume + analysis to SQLite (same as Streamlit)",
+    ),
+) -> AnalysisRequest:
+    return AnalysisRequest(
+        job_category=job_category,
+        job_role=job_role,
+        save_to_db=save_to_db,
+    )
 
-    personal_info: dict[str, Any]
-    summary: str = ""
-    experience: list[Any] = Field(default_factory=list)
-    education: list[Any] = Field(default_factory=list)
-    projects: list[Any] = Field(default_factory=list)
-    skills: dict[str, Any] = Field(default_factory=dict)
-    template: str = "Modern"
-    output_format: Literal["docx", "pdf"] = "docx"
-    save_to_db: bool = True
+
+def _form_to_ai_analysis_request(
+    job_category: str = Form(
+        ...,
+        description="Job category key from JOB_ROLES",
+    ),
+    job_role: str = Form(..., description="Role key from JOB_ROLES"),
+    custom_job_description: str = Form(
+        "",
+        description="Optional full job description; when set, used as Gemini job context instead of role_info text",
+    ),
+    model: str = Form(
+        "Google Gemini",
+        description='AI backend: "Google Gemini" or "Anthropic Claude"',
+    ),
+    save_to_db: bool = Form(
+        True,
+        description="Persist a row to ai_analysis (same fields as Streamlit)",
+    ),
+) -> AIAnalysisRequest:
+    return AIAnalysisRequest(
+        job_category=job_category,
+        job_role=job_role,
+        save_to_db=save_to_db,
+        custom_job_description=custom_job_description,
+        model=model,
+    )
 
 
-class AdminLoginRequest(BaseModel):
-    email: str
-    password: str
-
-
-class FeedbackSubmitRequest(BaseModel):
-    rating: int = Field(..., ge=1, le=5)
-    usability_score: int = Field(..., ge=1, le=5)
-    feature_satisfaction: int = Field(..., ge=1, le=5)
-    missing_features: str = ""
-    improvement_suggestions: str = ""
-    user_experience: str = ""
+def _unlink_later(path: str) -> None:
+    try:
+        os.unlink(path)
+    except OSError:
+        pass
 
 
 def _docx_bytes_to_pdf(docx_bytes: bytes) -> bytes:
@@ -308,24 +341,18 @@ def config_job_filters() -> dict[str, Any]:
 @app.post("/analyze/basic")
 def analyze_basic(
     _admin_email: Annotated[str, Depends(get_current_admin_email)],
+    req: Annotated[AnalysisRequest, Depends(_form_to_analysis_request)],
     file: UploadFile = File(..., description="Resume file (PDF or DOCX)"),
-    job_category: str = Form(
-        ...,
-        description="Job category key, e.g. 'Software Development and Engineering'",
-    ),
-    job_role: str = Form(..., description="Role key, e.g. 'Backend Developer'"),
-    save_to_db: bool = Form(
-        True,
-        description="Persist resume + analysis to SQLite (same as Streamlit)",
-    ),
 ) -> dict[str, Any]:
     """
     Standard ATS-style analysis using ResumeAnalyzer.analyze_resume.
     Response JSON matches the analyzer dict keys (same as Streamlit).
 
+    Form fields map to ``AnalysisRequest`` (``job_category``, ``job_role``, ``save_to_db``).
+
     **Requires** ``Authorization: Bearer`` (admin login).
     """
-    role_info = _resolve_role_info(job_category, job_role)
+    role_info = _resolve_role_info(req.job_category, req.job_role)
     raw = file.file.read()
     if not raw:
         raise HTTPException(status_code=400, detail="Empty file upload")
@@ -340,9 +367,9 @@ def analyze_basic(
 
     analysis = resume_analyzer.analyze_resume({"raw_text": text}, role_info)
 
-    if save_to_db:
+    if req.save_to_db:
         try:
-            _persist_standard_analysis(analysis, job_category, job_role)
+            _persist_standard_analysis(analysis, req.job_category, req.job_role)
         except Exception as e:
             logger.exception("Database save failed after analysis: %s", e)
 
@@ -352,27 +379,13 @@ def analyze_basic(
 @app.post("/analyze/ai")
 def analyze_ai(
     _admin_email: Annotated[str, Depends(get_current_admin_email)],
+    req: Annotated[AIAnalysisRequest, Depends(_form_to_ai_analysis_request)],
     file: UploadFile = File(..., description="Resume file (PDF, DOCX, or plain text)"),
-    job_category: str = Form(
-        ...,
-        description="Job category key from JOB_ROLES",
-    ),
-    job_role: str = Form(..., description="Role key from JOB_ROLES"),
-    custom_job_description: str = Form(
-        "",
-        description="Optional full job description; when set, used as Gemini job context instead of role_info text",
-    ),
-    model: str = Form(
-        "Google Gemini",
-        description='AI backend: "Google Gemini" or "Anthropic Claude"',
-    ),
-    save_to_db: bool = Form(
-        True,
-        description="Persist a row to ai_analysis (same fields as Streamlit)",
-    ),
 ) -> dict[str, Any]:
     """
     Gemini (or Claude) analysis via AIResumeAnalyzer.analyze_resume.
+
+    Form fields map to ``AIAnalysisRequest``.
 
     Success / error responses use the same keys as the Streamlit AI flow:
     ``score``, ``ats_score``, ``strengths``, ``weaknesses``, ``suggestions``,
@@ -380,7 +393,7 @@ def analyze_ai(
 
     **Requires** ``Authorization: Bearer`` (admin login).
     """
-    role_info = _resolve_role_info(job_category, job_role)
+    role_info = _resolve_role_info(req.job_category, req.job_role)
     raw = file.file.read()
     if not raw:
         raise HTTPException(status_code=400, detail="Empty file upload")
@@ -393,23 +406,23 @@ def analyze_ai(
             detail="Could not extract any text from the uploaded file.",
         )
 
-    custom_jd = custom_job_description.strip() or None
+    custom_jd = req.custom_job_description.strip() or None
     result = ai_resume_analyzer.analyze_resume(
         resume_text,
-        job_role=job_role,
+        job_role=req.job_role,
         role_info=role_info,
-        model=model,
+        model=req.model,
         custom_job_description=custom_jd,
     )
 
-    if save_to_db and result.get("error") is None:
+    if req.save_to_db and result.get("error") is None:
         try:
             save_ai_analysis_data(
                 None,
                 {
-                    "model_used": result.get("model_used", model),
+                    "model_used": result.get("model_used", req.model),
                     "resume_score": int(result.get("score") or 0),
-                    "job_role": job_role,
+                    "job_role": req.job_role,
                 },
             )
         except Exception as e:
@@ -421,15 +434,18 @@ def analyze_ai(
 @app.post("/builder/generate")
 def builder_generate(
     _admin_email: Annotated[str, Depends(get_current_admin_email)],
-    body: ResumeBuildRequest,
-) -> Response:
+    background_tasks: BackgroundTasks,
+    body: ResumeData,
+) -> FileResponse:
     """
-    Build a resume with ``ResumeBuilder.generate_resume`` and return the file bytes.
+    Build a resume with ``ResumeBuilder.generate_resume`` and return a downloadable file.
+
+    JSON body matches ``ResumeData`` (personal_info, sections, ``output_format``, etc.).
 
     - ``output_format=docx`` — same as Streamlit download (Word document).
     - ``output_format=pdf`` — converts DOCX via ``docx2pdf`` (typically needs Microsoft Word on Windows).
 
-    Response is a binary download (not JSON). React clients should use ``responseType: 'blob'``.
+    Response uses ``FileResponse``. React clients should use ``responseType: 'blob'``.
 
     **Requires** ``Authorization: Bearer`` (admin login).
     """
@@ -475,7 +491,7 @@ def builder_generate(
 
     if body.output_format == "pdf":
         try:
-            pdf_bytes = _docx_bytes_to_pdf(docx_bytes)
+            out_bytes = _docx_bytes_to_pdf(docx_bytes)
         except HTTPException:
             raise
         except Exception as e:
@@ -487,16 +503,25 @@ def builder_generate(
                     f"Try output_format='docx' instead. Detail: {e!s}"
                 ),
             ) from e
-        return Response(
-            content=pdf_bytes,
-            media_type="application/pdf",
-            headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+        suffix = ".pdf"
+        media = "application/pdf"
+    else:
+        out_bytes = docx_bytes
+        suffix = ".docx"
+        media = (
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         )
 
-    return Response(
-        content=docx_bytes,
-        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    fd, path = tempfile.mkstemp(suffix=suffix)
+    try:
+        os.write(fd, out_bytes)
+    finally:
+        os.close(fd)
+    background_tasks.add_task(_unlink_later, path)
+    return FileResponse(
+        path,
+        filename=fname,
+        media_type=media,
     )
 
 
@@ -560,9 +585,9 @@ def jobs_search(
 
 
 @app.post("/feedback")
-def submit_feedback(body: FeedbackSubmitRequest) -> dict[str, str]:
+def submit_feedback(body: Feedback) -> dict[str, str]:
     """
-    Persist user feedback (same schema as the former Streamlit form).
+    Persist user feedback (``Feedback``: rating + comment; extended fields optional).
 
     Public endpoint (consider placing behind a reverse proxy / rate limit in production).
     """
