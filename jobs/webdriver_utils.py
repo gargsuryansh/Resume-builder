@@ -1,10 +1,12 @@
 """Utility functions for webdriver setup and management"""
+import logging
 import os
 import sys
 import platform
 import tempfile
 import subprocess
-import streamlit as st
+
+logger = logging.getLogger(__name__)
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
@@ -85,23 +87,23 @@ def run_setup_script():
         setup_script = os.path.join(script_dir, "setup_chromedriver.py")
         
         if os.path.exists(setup_script):
-            st.info("Running chromedriver setup script...")
+            logger.info("Running chromedriver setup script...")
             result = subprocess.run([sys.executable, setup_script], 
                                    capture_output=True, text=True)
             
             if result.returncode == 0:
-                st.success("Chromedriver setup completed successfully!")
+                logger.info("Chromedriver setup completed successfully")
                 # Extract the chromedriver path from the output
                 for line in result.stdout.split('\n'):
                     if "Chromedriver path:" in line:
                         chromedriver_path = line.split("Chromedriver path:")[1].strip()
                         return chromedriver_path
             else:
-                st.warning(f"Chromedriver setup failed: {result.stderr}")
+                logger.warning("Chromedriver setup failed: %s", result.stderr)
         else:
-            st.warning(f"Setup script not found at {setup_script}")
+            logger.warning("Setup script not found at %s", setup_script)
     except Exception as e:
-        st.warning(f"Error running setup script: {str(e)}")
+        logger.warning("Error running setup script: %s", e)
     
     return None
 
@@ -144,7 +146,7 @@ def setup_webdriver():
     # Method 1: Try direct initialization first since it's working
     try:
         driver = webdriver.Chrome(options=options)
-        st.success("Chrome webdriver initialized successfully!")
+        logger.info("Chrome webdriver initialized successfully")
         return driver
     except Exception:
         # If direct initialization fails, try other methods
@@ -215,5 +217,7 @@ def setup_webdriver():
             pass
     
     # All methods failed
-    st.error("Failed to initialize Chrome webdriver. Please make sure Chrome is installed.")
+    logger.error(
+        "Failed to initialize Chrome webdriver. Please make sure Chrome is installed."
+    )
     return None 

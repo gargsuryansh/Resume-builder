@@ -15,8 +15,8 @@ if %ERRORLEVEL% NEQ 0 (
 REM Run the chromedriver setup script silently
 python setup_chromedriver.py >nul 2>nul
 
-REM Start the application
-echo Starting application...
-streamlit run app.py
+REM Start FastAPI
+echo Starting API...
+python -m uvicorn api.main:app --host 0.0.0.0 --port 8000
 
 pause 

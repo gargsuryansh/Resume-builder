@@ -1,8 +1,10 @@
-streamlit
-streamlit-option-menu
-streamlit-lottie
-streamlit-extras
-streamlit-custom-notification-box
+# FastAPI backend (React frontend)
+fastapi
+uvicorn[standard]
+python-multipart
+pydantic>=2
+PyJWT>=2.8.0
+
 python-docx
 pandas
 plotly

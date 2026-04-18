@@ -1,48 +1,38 @@
 #!/usr/bin/env python3
 """
-Run script for Smart AI Resume Analyzer
-This script handles Chrome/chromedriver setup and starts the application
+Launch the FastAPI backend (Smart AI Resume Analyzer API).
+
+Usage:
+  python run_app.py
+  # or: uvicorn api.main:app --host 0.0.0.0 --port 8000
 """
 
 import os
 import sys
 import subprocess
-import platform
 
-def main():
-    """Main function to set up chromedriver and run the application"""
-    print("Starting Smart AI Resume Analyzer...")
-    
-    # Run the chromedriver setup script silently
-    setup_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "setup_chromedriver.py")
-    
+
+def main() -> None:
+    root = os.path.dirname(os.path.abspath(__file__))
+    setup_script = os.path.join(root, "setup_chromedriver.py")
     if os.path.exists(setup_script):
         try:
-            # Run the setup script with output redirected to null
-            with open(os.devnull, 'w') as devnull:
+            with open(os.devnull, "w", encoding="utf-8") as devnull:
                 subprocess.run(
                     [sys.executable, setup_script],
                     stdout=devnull,
-                    stderr=devnull
+                    stderr=devnull,
+                    check=False,
                 )
         except Exception:
-            # Silently continue even if setup fails
             pass
-    
-    # Start the Streamlit application
-    print("Starting application...")
-    app_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "app.py")
-    
-    if os.path.exists(app_script):
-        try:
-            # Use subprocess to run streamlit
-            subprocess.run([sys.executable, "-m", "streamlit", "run", app_script])
-        except Exception as e:
-            print(f"Error starting application: {str(e)}")
-            sys.exit(1)
-    else:
-        print(f"Application script not found at {app_script}")
-        sys.exit(1)
+
+    import uvicorn
+
+    host = os.environ.get("HOST", "0.0.0.0")
+    port = int(os.environ.get("PORT", "8000"))
+    uvicorn.run("api.main:app", host=host, port=port, reload=False)
+
 
 if __name__ == "__main__":
-    main() 
+    main()

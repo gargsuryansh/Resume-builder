@@ -1,5 +1,5 @@
 import os
-import streamlit as st
+import logging
 from dotenv import load_dotenv
 import google.generativeai as genai
 import pdfplumber
@@ -10,6 +10,21 @@ import requests
 import json
 import math
 import re
+
+logger = logging.getLogger(__name__)
+
+
+def _clean_markdown_for_lists(text):
+    """Strip common markdown markers for structured list extraction (Gemini responses)."""
+    if not text:
+        return ""
+    text = re.sub(r"\*\*(.*?)\*\*", r"\1", text)
+    text = re.sub(r"\*(.*?)\*", r"\1", text)
+    text = re.sub(r"__(.*?)__", r"\1", text)
+    text = re.sub(r"_(.*?)_", r"\1", text)
+    text = re.sub(r"^#{1,6}\s+", "", text, flags=re.MULTILINE)
+    text = re.sub(r"\[(.*?)\]\(.*?\)", r"\1", text)
+    return text.strip()
 
 
 class AIResumeAnalyzer:
@@ -57,9 +72,9 @@ class AIResumeAnalyzer:
                         except Exception as e:
                             # Don't show these specific errors to the user
                             if "PDFColorSpace" not in str(e) and "Cannot convert" not in str(e):
-                                st.warning(f"Error extracting text from page with pdfplumber: {e}")
+                                logger.warning(f"Error extracting text from page with pdfplumber: {e}")
             except Exception as e:
-                st.warning(f"pdfplumber extraction failed: {e}")
+                logger.warning(f"pdfplumber extraction failed: {e}")
             
             # If pdfplumber extraction worked, return the text
             if text.strip():
@@ -67,7 +82,7 @@ class AIResumeAnalyzer:
                 return text.strip()
             
             # Try PyPDF2 as a fallback
-            st.info("Trying PyPDF2 extraction method...")
+            logger.info("Trying PyPDF2 extraction method...")
             try:
                 import pypdf
                 pdf_text = ""
@@ -82,10 +97,10 @@ class AIResumeAnalyzer:
                     os.unlink(temp_path)  # Clean up the temp file
                     return pdf_text.strip()
             except Exception as e:
-                st.warning(f"PyPDF2 extraction failed: {e}")
+                logger.warning(f"PyPDF2 extraction failed: {e}")
             
             # If we got here, both extraction methods failed
-            st.warning("Standard text extraction methods failed. Your PDF might be image-based or scanned.")
+            logger.warning("Standard text extraction methods failed. Your PDF might be image-based or scanned.")
             
             # Try OCR as a last resort
             try:
@@ -93,7 +108,7 @@ class AIResumeAnalyzer:
                 import pytesseract
                 from pdf2image import convert_from_path
                 
-                st.info("Attempting OCR for image-based PDF. This may take a moment...")
+                logger.info("Attempting OCR for image-based PDF. This may take a moment...")
                 
                 # Check if poppler is installed
                 poppler_path = None
@@ -108,11 +123,11 @@ class AIResumeAnalyzer:
                     for path in possible_paths:
                         if os.path.exists(path):
                             poppler_path = path
-                            st.success(f"Found Poppler at: {path}")
+                            logger.info(f"Found Poppler at: {path}")
                             break
                     
                     if not poppler_path:
-                        st.warning("Poppler not found in common locations. Using default path: C:\\poppler\\Library\\bin")
+                        logger.warning("Poppler not found in common locations. Using default path: C:\\poppler\\Library\\bin")
                         poppler_path = r'C:\poppler\Library\bin'
                 
                 # Try to convert PDF to images
@@ -125,7 +140,7 @@ class AIResumeAnalyzer:
                     # Process each image with OCR
                     ocr_text = ""
                     for i, image in enumerate(images):
-                        st.info(f"Processing page {i+1} with OCR...")
+                        logger.info(f"Processing page {i+1} with OCR...")
                         page_text = pytesseract.image_to_string(image)
                         ocr_text += page_text + "\n"
                     
@@ -133,23 +148,23 @@ class AIResumeAnalyzer:
                         os.unlink(temp_path)  # Clean up the temp file
                         return ocr_text.strip()
                     else:
-                        st.error("OCR extraction yielded no text. Please check if the PDF contains actual text content.")
+                        logger.error("OCR extraction yielded no text. Please check if the PDF contains actual text content.")
                 except Exception as e:
-                    st.error(f"PDF to image conversion failed: {e}")
-                    st.info("If you're on Windows, make sure Poppler is installed and in your PATH.")
-                    st.info("Download Poppler from: https://github.com/oschwartz10612/poppler-windows/releases/")
+                    logger.error(f"PDF to image conversion failed: {e}")
+                    logger.info("If you're on Windows, make sure Poppler is installed and in your PATH.")
+                    logger.info("Download Poppler from: https://github.com/oschwartz10612/poppler-windows/releases/")
             except ImportError as e:
-                st.error(f"OCR libraries not available: {e}")
-                st.info("Please install the required OCR libraries:")
-                st.code("pip install pytesseract pdf2image")
-                st.info("For Windows, also download and install:")
-                st.info("1. Tesseract OCR: https://github.com/UB-Mannheim/tesseract/wiki")
-                st.info("2. Poppler: https://github.com/oschwartz10612/poppler-windows/releases/")
+                logger.error(f"OCR libraries not available: {e}")
+                logger.info("Please install the required OCR libraries:")
+                logger.info("Install OCR deps: pip install pytesseract pdf2image")
+                logger.info("For Windows, also download and install:")
+                logger.info("1. Tesseract OCR: https://github.com/UB-Mannheim/tesseract/wiki")
+                logger.info("2. Poppler: https://github.com/oschwartz10612/poppler-windows/releases/")
             except Exception as e:
-                st.error(f"OCR processing failed: {e}")
+                logger.error(f"OCR processing failed: {e}")
         
         except Exception as e:
-            st.error(f"PDF processing failed: {e}")
+            logger.error(f"PDF processing failed: {e}")
         
         # Clean up the temp file
         try:
@@ -158,7 +173,7 @@ class AIResumeAnalyzer:
             pass
         
         # If all extraction methods failed, return an empty string
-        st.error("All text extraction methods failed. Please try a different PDF or manually extract the text.")
+        logger.error("All text extraction methods failed. Please try a different PDF or manually extract the text.")
         return ""
     
     def extract_text_from_docx(self, docx_file):
@@ -167,7 +182,14 @@ class AIResumeAnalyzer:
         
         # Save the uploaded file to a temporary file
         with tempfile.NamedTemporaryFile(delete=False, suffix='.docx') as temp_file:
-            temp_file.write(docx_file.getbuffer())
+            if hasattr(docx_file, "getbuffer"):
+                temp_file.write(docx_file.getbuffer())
+            elif hasattr(docx_file, "read"):
+                temp_file.write(docx_file.read())
+                if hasattr(docx_file, "seek"):
+                    docx_file.seek(0)
+            else:
+                temp_file.write(docx_file)
             temp_path = temp_file.name
         
         text = ""
@@ -176,7 +198,7 @@ class AIResumeAnalyzer:
             for para in doc.paragraphs:
                 text += para.text + "\n"
         except Exception as e:
-            st.error(f"Error extracting text from DOCX: {e}")
+            logger.error(f"Error extracting text from DOCX: {e}")
         
         os.unlink(temp_path)  # Clean up the temp file
         return text
@@ -275,6 +297,13 @@ class AIResumeAnalyzer:
         except Exception as e:
             return {"error": f"Analysis failed: {str(e)}"}
 
+    def analyze_resume_with_anthropic(self, resume_text, job_description=None, job_role=None):
+        """Placeholder: Streamlit references Claude; implement when OpenRouter/Anthropic is wired."""
+        return {
+            "error": "Anthropic Claude analysis is not implemented in this build.",
+            "model_used": "Anthropic Claude",
+        }
+
     
     def generate_pdf_report(self, analysis_result, candidate_name, job_role):
         """Generate a PDF report of the analysis"""
@@ -295,8 +324,8 @@ class AIResumeAnalyzer:
                 import datetime
                 import math
             except ImportError as e:
-                st.error(f"Error importing PDF libraries: {str(e)}")
-                st.info("Please make sure reportlab is installed: pip install reportlab")
+                logger.error(f"Error importing PDF libraries: {str(e)}")
+                logger.info("Please make sure reportlab is installed: pip install reportlab")
                 return self.simple_generate_pdf_report(analysis_result, candidate_name, job_role)
             
             # Helper function to clean markdown formatting
@@ -320,11 +349,11 @@ class AIResumeAnalyzer:
             
             # Validate input data
             if not analysis_result:
-                st.error("No analysis result provided for PDF generation")
+                logger.error("No analysis result provided for PDF generation")
                 return None
                 
             # Print debug info
-            st.info(f"Generating PDF report for {candidate_name} targeting {job_role}")
+            logger.info(f"Generating PDF report for {candidate_name} targeting {job_role}")
             
             # Create a buffer for the PDF
             buffer = io.BytesIO()
@@ -1094,9 +1123,9 @@ class AIResumeAnalyzer:
             return buffer
         
         except Exception as e:
-            st.error(f"Error generating simple PDF report: {str(e)}")
+            logger.error(f"Error generating simple PDF report: {str(e)}")
             import traceback
-            st.code(traceback.format_exc())
+            logger.error(traceback.format_exc())
             return None
             
     def extract_skills_from_analysis(self, analysis_text):
@@ -1115,7 +1144,7 @@ class AIResumeAnalyzer:
                         if skill:
                             skills.append(skill)
         except Exception as e:
-            st.warning(f"Error extracting skills: {str(e)}")
+            logger.warning(f"Error extracting skills: {str(e)}")
         
         return skills
         
@@ -1135,7 +1164,7 @@ class AIResumeAnalyzer:
                         if skill:
                             missing_skills.append(skill)
         except Exception as e:
-            st.warning(f"Error extracting missing skills: {str(e)}")
+            logger.warning(f"Error extracting missing skills: {str(e)}")
         
         return missing_skills
     
@@ -1187,7 +1216,14 @@ class AIResumeAnalyzer:
             print(f"Error extracting ATS score: {str(e)}")
             return 0
             
-    def analyze_resume(self, resume_text, job_role=None, role_info=None, model="Google Gemini"):
+    def analyze_resume(
+        self,
+        resume_text,
+        job_role=None,
+        role_info=None,
+        model="Google Gemini",
+        custom_job_description=None,
+    ):
         """
         Analyze a resume using the specified AI model
         
@@ -1196,6 +1232,8 @@ class AIResumeAnalyzer:
         - job_role: The target job role
         - role_info: Additional information about the job role
         - model: The AI model to use ("Google Gemini" or "Anthropic Claude")
+        - custom_job_description: If provided (non-empty), passed to Gemini as the job
+          description instead of building one from role_info (matches Streamlit custom JD).
         
         Returns:
         - Dictionary containing analysis results
@@ -1204,7 +1242,9 @@ class AIResumeAnalyzer:
         
         try:
             job_description = None
-            if role_info:
+            if custom_job_description and str(custom_job_description).strip():
+                job_description = str(custom_job_description).strip()
+            elif role_info:
                 job_description = f"""
                 Role: {job_role}
                 Description: {role_info.get('description', '')}
@@ -1224,6 +1264,18 @@ class AIResumeAnalyzer:
                 result = self.analyze_resume_with_gemini(resume_text, job_description, job_role)
                 model_used = "Google Gemini"
             
+            if result.get("error"):
+                return {
+                    "error": result["error"],
+                    "score": 0,
+                    "ats_score": 0,
+                    "strengths": [],
+                    "weaknesses": [],
+                    "suggestions": [],
+                    "full_response": "",
+                    "model_used": model_used,
+                }
+            
             # Process the result to extract structured information
             analysis_text = result.get("analysis", "")
             
@@ -1231,7 +1283,7 @@ class AIResumeAnalyzer:
             strengths = []
             if "## Key Strengths" in analysis_text:
                 strengths_section = analysis_text.split("## Key Strengths")[1].split("##")[0].strip()
-                strengths = [clean_markdown(s.strip().replace("- ", "").replace("* ", "").replace("• ", "")) 
+                strengths = [_clean_markdown_for_lists(s.strip().replace("- ", "").replace("* ", "").replace("• ", "")) 
                             for s in strengths_section.split("\n") 
                             if s.strip() and (s.strip().startswith("-") or s.strip().startswith("*") or s.strip().startswith("•"))]
             
@@ -1239,7 +1291,7 @@ class AIResumeAnalyzer:
             weaknesses = []
             if "## Areas for Improvement" in analysis_text:
                 weaknesses_section = analysis_text.split("## Areas for Improvement")[1].split("##")[0].strip()
-                weaknesses = [clean_markdown(w.strip().replace("- ", "").replace("* ", "").replace("• ", "")) 
+                weaknesses = [_clean_markdown_for_lists(w.strip().replace("- ", "").replace("* ", "").replace("• ", "")) 
                              for w in weaknesses_section.split("\n") 
                              if w.strip() and (w.strip().startswith("-") or w.strip().startswith("*") or w.strip().startswith("•"))]
             
@@ -1247,7 +1299,7 @@ class AIResumeAnalyzer:
             suggestions = []
             if "## Recommended Courses" in analysis_text:
                 suggestions_section = analysis_text.split("## Recommended Courses")[1].split("##")[0].strip()
-                suggestions = [clean_markdown(s.strip().replace("- ", "").replace("* ", "").replace("• ", "")) 
+                suggestions = [_clean_markdown_for_lists(s.strip().replace("- ", "").replace("* ", "").replace("• ", "")) 
                                  for s in suggestions_section.split("\n") 
                                  if s.strip() and (s.strip().startswith("-") or s.strip().startswith("*") or s.strip().startswith("•"))]
             
@@ -1303,8 +1355,8 @@ class AIResumeAnalyzer:
                 import datetime
                 import math
             except ImportError as e:
-                st.error(f"Error importing PDF libraries: {str(e)}")
-                st.info("Please make sure reportlab is installed: pip install reportlab")
+                logger.error(f"Error importing PDF libraries: {str(e)}")
+                logger.info("Please make sure reportlab is installed: pip install reportlab")
                 return None
             
             # Helper function to clean markdown formatting
@@ -1328,7 +1380,7 @@ class AIResumeAnalyzer:
             
             # Validate input data
             if not analysis_result:
-                st.error("No analysis result provided for PDF generation")
+                logger.error("No analysis result provided for PDF generation")
                 return None
                 
             # Create a buffer for the PDF
@@ -1805,9 +1857,9 @@ class AIResumeAnalyzer:
             return buffer
         
         except Exception as e:
-            st.error(f"Error generating simple PDF report: {str(e)}")
+            logger.error(f"Error generating simple PDF report: {str(e)}")
             import traceback
-            st.code(traceback.format_exc())
+            logger.error(traceback.format_exc())
             return None 
 
     def process_sections(self, analysis_text, content, normal_style, list_item_style, subheading_style, heading_style, clean_markdown):

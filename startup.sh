@@ -41,5 +41,5 @@ chmod +x setup_chromedriver.py
 
 echo "Setup completed. Starting application..."
 
-# Start the application
-streamlit run app.py 
+# Start the FastAPI application
+python -m uvicorn api.main:app --host 0.0.0.0 --port "${PORT:-8000}" 
