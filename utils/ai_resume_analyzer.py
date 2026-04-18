@@ -297,6 +297,60 @@ class AIResumeAnalyzer:
         except Exception as e:
             return {"error": f"Analysis failed: {str(e)}"}
 
+    def extract_structured_data(self, resume_text: str) -> dict:
+        """
+        Extract highly structured information from resume text using Gemini.
+        """
+        if not self.google_api_key:
+            return {"error": "Google API key not configured"}
+
+        prompt = """
+        You are a world-class HR Data Scientist and Resume Parser. Your mission is to extract candidate information with 100% accuracy into a machine-readable JSON format.
+
+        ### Instructions:
+        1. Extract data ONLY from the provided resume text.
+        2. Ensure types are correct (float for numbers, lists for arrays).
+        3. For 'job_role', determine the most suitable primary professional title based on experience.
+        4. For 'total_experience', calculate the total years of professional experience as a float.
+        5. If a field is missing, return null (for strings/numbers) or an empty list [].
+
+        ### Return exact JSON structure:
+        {
+            "full_name": "string",
+            "email": "string",
+            "phone": "string",
+            "location": "string",
+            "job_role": "string",
+            "total_experience": 0.0,
+            "skills": ["string", "string"],
+            "education": [{"institution": "string", "degree": "string", "year": "string"}],
+            "experience": [{"company": "string", "role": "string", "duration": "string", "description": "string"}],
+            "projects": [{"name": "string", "description": "string", "technologies": ["string"]}],
+            "summary": "string",
+            "strengths": ["string"],
+            "weaknesses": ["string"],
+            "suggestions": ["string"]
+        }
+
+        RESUME TEXT:
+        """
+        
+        try:
+            model = genai.GenerativeModel("gemini-flash-latest")
+            response = model.generate_content(prompt + resume_text)
+            
+            # Extract JSON from markdown response if wrapped in code blocks
+            res_text = response.text
+            if "```json" in res_text:
+                res_text = res_text.split("```json")[1].split("```")[0].strip()
+            elif "```" in res_text:
+                res_text = res_text.split("```")[1].split("```")[0].strip()
+            
+            return json.loads(res_text)
+        except Exception as e:
+            logger.error(f"Structured extraction failed: {e}")
+            return {"error": str(e)}
+
     def analyze_resume_with_anthropic(self, resume_text, job_description=None, job_role=None):
         """Placeholder: Streamlit references Claude; implement when OpenRouter/Anthropic is wired."""
         return {
