@@ -586,12 +586,13 @@ class LinkedInScraper:
             with st.expander("View Job Description"):
                 st.markdown(description)
                 
-                col_btn1, col_btn2 = st.columns(2)
+                col_btn1, col_btn2, col_btn3 = st.columns(3)
                 with col_btn1:
-                    st.markdown(f"<a href='{url}' target='_blank' class='job-url-button' style='width:100%; text-align:center;'>Apply on LinkedIn</a>", unsafe_allow_html=True)
+                    st.markdown(f"<a href='{url}' target='_blank' class='job-url-button' style='width:100%; text-align:center; height: 100%; box-sizing: border-box;'>Apply on LinkedIn</a>", unsafe_allow_html=True)
                 
                 with col_btn2:
-                    if st.button("✨ Auto-Fill with Profile", key=f"autofill_{i}"):
+                    st.markdown("<div style='margin-top: 0.55rem;'></div>", unsafe_allow_html=True)
+                    if st.button("✨ Auto-Fill with Profile", key=f"autofill_{i}", use_container_width=True):
                         if 'candidate_profile' not in st.session_state:
                             st.error("Please analyze your resume first to build your application profile!")
                         else:
@@ -602,6 +603,46 @@ class LinkedInScraper:
                                     bot.fill_easy_apply(url)
                                     # Note: We don't quit the driver immediately so the user can see it
                                     # driver.quit() would normally go here if it was background
+                
+                with col_btn3:
+                    st.markdown("<div style='margin-top: 0.55rem;'></div>", unsafe_allow_html=True)
+                    if st.button("❓ Interview Questions", key=f"questions_{i}", use_container_width=True):
+                        if f"generated_qs_{i}" not in st.session_state:
+                            from utils.interview_fetcher import InterviewFetcher
+                            fetcher = InterviewFetcher()
+                            try:
+                                # We pass the company name and role to the fetcher
+                                # Note: In my previous edits, I assumed company name was in df_final.iloc[i, 0]
+                                questions, provider, context = fetcher.fetch_all(company_name, job_title)
+                                if questions:
+                                    st.session_state[f"generated_qs_{i}"] = questions
+                                    st.session_state[f"generated_qs_provider_{i}"] = provider
+                                    st.session_state[f"generated_qs_context_{i}"] = context
+                                else:
+                                    st.warning("Could not find real-world questions for this specific role yet.")
+                            except Exception as e:
+                                st.error(f"Failed to fetch questions: {str(e)}")
+
+                if f"generated_qs_{i}" in st.session_state:
+                    st.markdown("---")
+                    context = st.session_state.get(f"generated_qs_context_{i}", {})
+                    st.markdown(f"### 🎯 Real Interview Questions for {company_name}")
+                    st.info(f"**Tier:** {context.get('tier', 'Unknown')} | **Domain:** {context.get('domain', 'General')}")
+                    
+                    questions = st.session_state[f"generated_qs_{i}"]
+                    
+                    for idx, q in enumerate(questions):
+                        badge_color = "#f59e0b" if q['importance'] == 'Rare' else "#4CAF50"
+                        st.markdown(f"""
+                            <div style="background: rgba(255, 255, 255, 0.05); padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid {badge_color};">
+                                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px;">
+                                    <span style="background: {badge_color}; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: bold;">{q['importance'].upper()}</span>
+                                    <span style="color: #666; font-size: 0.8rem;">📍 Asked at: <b>{q['company']}</b></span>
+                                </div>
+                                <div style="font-size: 1rem; font-weight: 500; margin-bottom: 8px;">{q['question']}</div>
+                                <div style="color: #888; font-size: 0.85rem;"><i>{q['reason']}</i></div>
+                            </div>
+                        """, unsafe_allow_html=True)
             
             st.markdown("<hr>", unsafe_allow_html=True)
 

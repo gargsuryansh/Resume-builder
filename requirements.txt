@@ -22,6 +22,7 @@ numpy
 webdriver-manager
 chromedriver-autoinstaller
 google-generativeai
+groq
 pdf2image
 pytesseract
 pdfplumber
@@ -34,3 +35,5 @@ matplotlib
 seaborn
 pypdf2
 psycopg2-binary
+streamlit-mic-recorder
+gTTS
