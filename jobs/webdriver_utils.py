@@ -148,7 +148,7 @@ def setup_webdriver():
     selenium_url = os.environ.get('SELENIUM_URL')
     if selenium_url:
         try:
-            st.info("Connecting to Remote Selenium browser for Visual Auto-Apply...")
+            st.info("🔄 Establishing browser session for automated data retrieval...")
             driver = webdriver.Remote(
                 command_executor=selenium_url,
                 options=options

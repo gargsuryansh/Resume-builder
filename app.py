@@ -35,6 +35,9 @@ import pandas as pd
 import json
 import streamlit as st
 import datetime
+from streamlit_mic_recorder import mic_recorder
+from utils.audio_utils import AudioUtils
+from utils.interview_manager import InterviewManager
 
 # Set page config at the very beginning
 st.set_page_config(
@@ -1242,8 +1245,8 @@ class ResumeApp:
             "Get instant AI-powered feedback to optimize your resume"
         )
 
-        # Create tabs for Normal Analyzer and AI Analyzer
-        analyzer_tabs = st.tabs(["Standard Analyzer", "AI Analyzer"])
+        # Create tabs for Normal Analyzer, AI Analyzer, Interview Prep, and Mock Interview
+        analyzer_tabs = st.tabs(["Standard Analyzer", "AI Analyzer", "💡 Interview Prep", "🎙️ Mock Interview"])
 
         with analyzer_tabs[0]:
             # Job Role Selection
@@ -1641,6 +1644,35 @@ class ResumeApp:
                                 for i, video in enumerate(videos):
                                     with cols[i % 2]:
                                         st.video(video[1])
+                            
+                            st.markdown("---")
+                            st.markdown("### 🤖 Level Up with AI")
+                            if st.button(f"✨ Generate Real Interview Questions for {selected_role}", key="std_gen_qs"):
+                                from utils.interview_fetcher import InterviewFetcher
+                                fetcher = InterviewFetcher()
+                                with st.spinner(f"Preparing interview questions for {selected_role}..."):
+                                    questions, provider, context = fetcher.fetch_all("General", selected_role)
+                                    if questions:
+                                        st.session_state.std_questions = questions
+                                        st.session_state.std_questions_context = context
+                                    else:
+                                        st.warning("Could not gather questions for this role at this time.")
+                            
+                            if 'std_questions' in st.session_state:
+                                questions = st.session_state.std_questions
+                                context = st.session_state.std_questions_context
+                                st.info(f"**Tier:** {context.get('tier')} | **Domain:** {context.get('domain')}")
+                                for q in questions:
+                                    badge_color = "#f59e0b" if q['importance'] == 'Rare' else "#4CAF50"
+                                    st.markdown(f"""
+                                        <div style="background: rgba(255, 255, 255, 0.05); padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid {badge_color};">
+                                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px;">
+                                                <span style="background: {badge_color}; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: bold;">{q['importance'].upper()}</span>
+                                                <span style="color: #666; font-size: 0.8rem;">📍 Asked at: <b>{q['company']}</b></span>
+                                            </div>
+                                            <div style="font-size: 1rem; font-weight: 500; margin-bottom: 8px;">{q['question']}</div>
+                                        </div>
+                                    """, unsafe_allow_html=True)
 
                     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -2357,16 +2389,16 @@ class ResumeApp:
                                 # Update progress
                                 ai_progress.progress(50)
                                 
-                                # Analyze the resume with Google Gemini
+                                # Analyze the resume with LLM Orchestrator
                                 if use_custom_job_desc and custom_job_description:
                                     # Use custom job description for analysis
-                                    analysis_result = analyzer.analyze_resume_with_gemini(
+                                    analysis_result = analyzer.analyze_resume(
                                         resume_text, job_role=job_role, job_description=custom_job_description)
                                     # Show that custom job description was used
                                     st.session_state['used_custom_job_desc'] = True
                                 else:
                                     # Use standard role-based analysis
-                                    analysis_result = analyzer.analyze_resume_with_gemini(
+                                    analysis_result = analyzer.analyze_resume(
                                         resume_text, job_role=job_role)
                                     st.session_state['used_custom_job_desc'] = False
 
@@ -2713,6 +2745,12 @@ class ResumeApp:
                                                 <i class="fas fa-handshake"></i> Job Match Analysis
                                             </h3>
                                             <div class="section-content">""",
+                                            
+                                        "## Most Rare and Important Interview Questions": """<div class="report-section">
+                                            <h3 style="background: linear-gradient(90deg, #f59e0b, #fbbf24); color: white; padding: 10px; border-radius: 5px;">
+                                                <i class="fas fa-question-circle"></i> Most Rare and Important Interview Questions
+                                            </h3>
+                                            <div class="section-content">""",
                                     }
                                     
                                     # Apply the styling to each section
@@ -2825,6 +2863,260 @@ class ResumeApp:
                             st.error(f"Error during AI analysis: {str(ai_error)}")
                             import traceback as tb
                             st.code(tb.format_exc())
+
+        with analyzer_tabs[2]:
+            st.markdown("""
+            <div style='background-color: #1e1e1e; padding: 20px; border-radius: 10px; margin: 10px 0;'>
+                <h3>💡 AI Interview Preparation</h3>
+                <p>Enter a company and role to scrape <b>real-world</b> interview questions asked by recruiters and candidates.</p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            prep_col1, prep_col2 = st.columns(2)
+            with prep_col1:
+                prep_company = st.text_input("Company Name", placeholder="e.g. Google, Zomato, Razorpay")
+            with prep_col2:
+                prep_role = st.text_input("Job Role", placeholder="e.g. Software Engineer, Product Manager")
+            
+            if st.button("🚀 Fetch Real Questions", type="primary", use_container_width=True):
+                if prep_company and prep_role:
+                    from utils.interview_fetcher import InterviewFetcher
+                    fetcher = InterviewFetcher()
+                    
+                    questions, provider, context = fetcher.fetch_all(prep_company, prep_role)
+                    
+                    if questions:
+                        st.session_state.prep_results = {
+                            "questions": questions,
+                            "context": context,
+                            "company": prep_company,
+                            "role": prep_role
+                        }
+                    else:
+                        st.error("Currently unable to provide questions for this role. Please try again later.")
+                else:
+                    st.warning("Please provide both company name and role.")
+            
+            if 'prep_results' in st.session_state:
+                res = st.session_state.prep_results
+                st.markdown(f"## 🎯 Real Questions: {res['role']} at {res['company']}")
+                st.info(f"**Tier:** {res['context'].get('tier')} | **Domain:** {res['context'].get('domain')}")
+                
+                for q in res['questions']:
+                    badge_color = "#f59e0b" if q['importance'] == 'Rare' else "#4CAF50"
+                    st.markdown(f"""
+                        <div style="background: rgba(255, 255, 255, 0.05); padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 5px solid {badge_color};">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+                                <span style="background: {badge_color}; color: white; padding: 3px 10px; border-radius: 50px; font-size: 0.75rem; font-weight: bold;">{q['importance'].upper()}</span>
+                                <span style="color: #00bfa5; font-size: 0.85rem; font-weight: bold;">🏢 {q['company']}</span>
+                            </div>
+                            <div style="font-size: 1.1rem; font-weight: 600; margin-bottom: 10px; color: #fff;">{q['question']}</div>
+                            <div style="background: rgba(0, 191, 165, 0.05); padding: 10px; border-radius: 5px; border-left: 2px solid #00bfa5;">
+                                <div style="color: #00bfa5; font-size: 0.75rem; font-weight: bold; text-transform: uppercase; margin-bottom: 4px;">Context / Why it's asked</div>
+                                <div style="color: #ccc; font-size: 0.9rem; line-height: 1.4;">{q['reason']}</div>
+                            </div>
+                        </div>
+                    """, unsafe_allow_html=True)
+
+        with analyzer_tabs[3]:
+            st.markdown("""
+            <div style='background-color: #1a1a1a; padding: 25px; border-radius: 15px; border: 1px solid #333; margin-bottom: 25px;'>
+                <h2 style='color: #4CAF50; margin-bottom: 10px;'>🎙️ AI Voice-to-Voice Mock Interview</h2>
+                <p style='color: #888;'>Practice your interview skills with our formal AI interviewer. Scraped real-world questions will be used to test you.</p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Initialize Utilities
+            audio_utils = AudioUtils()
+            interview_manager = InterviewManager()
+            
+            # 1. Interview is Active
+            if 'interview' in st.session_state and not st.session_state.interview.get('is_complete', False):
+                session = st.session_state.interview
+                
+                # Header Section
+                st.markdown(f"### {session['role']} Interview at {session['company']}")
+                progress = 0
+                if session['current_step'].startswith('question_'):
+                    progress = (session['question_index'] + 1) / (session['target_length'] + 2) # +2 for Greeting & Intro
+                
+                st.progress(progress)
+                
+                # Main Interaction Loop
+                chat_container = st.container(height=400)
+                
+                with chat_container:
+                    for item in session['transcript']:
+                        with st.chat_message(item['role'].lower()):
+                            st.write(item['text'])
+                            if item['role'] == "User" and 'score' in item:
+                                # Show inline feedback
+                                st.markdown(f"⭐ **Score:** {item['score']}/10")
+                                st.caption(f"Analysis: {item['feedback']}")
+                
+                # Logic for current step
+                if 'last_handled_step' not in st.session_state or st.session_state.last_handled_step != session['current_step']:
+                    # AI needs to speak
+                    message = ""
+                    if session['current_step'] == "greeting":
+                        message = f"Hello! I am your interviewer today for the '{session['role']}' position at '{session['company']}'. I'll be asking you {session['target_length']} questions. To start, could you please tell me a bit about yourself?"
+                    elif session['current_step'] == "intro":
+                        message = "Thank you. Let's get started with the first question."
+                        session['current_step'] = "question_0"
+                        st.rerun()
+                    elif session['current_step'].startswith('question_'):
+                        idx = session['question_index']
+                        if idx < len(session['questions']):
+                            message = session['questions'][idx]['question']
+                        else:
+                            # If we ran out of scraped questions, AI generates one
+                            prompt = f"Ask a formal interview question for {session['role']} at {session['company']}."
+                            from utils.llm_orchestrator import LLMOrchestrator
+                            message, _ = LLMOrchestrator().generate_content(prompt)
+                    elif session['current_step'] == "conclusion":
+                        message = "That concludes our interview. Thank you for your time. Your report is now ready for download."
+                        session['is_complete'] = True
+                    
+                    if message:
+                        session['transcript'].append({"role": "AI", "text": message, 
+                                                     "question_idx": session['question_index'] if session['current_step'].startswith('question_') else None})
+                        st.session_state.last_handled_step = session['current_step']
+                        audio = audio_utils.text_to_speech(message, mode=session['language_mode'])
+                        audio_utils.autoplay_audio(audio)
+                        
+                        # Handle Continuous Mode JS Bridge
+                        if session.get('continuous_mode'):
+                            # Inject JS to auto-click the mic recorder after audio finishes
+                            st.components.v1.html("""
+                                <script>
+                                    window.parent.addEventListener('message', function(event) {
+                                        if (event.data.type === 'audio_finished') {
+                                            console.log("Audio finished event received in app.py bridge");
+                                            // Find the mic recorder button and click it
+                                            const buttons = window.parent.document.querySelectorAll('button');
+                                            for(const btn of buttons) {
+                                                if(btn.innerText.includes("Click to Start Recording")) {
+                                                    btn.click();
+                                                    console.log("Auto-started recorder");
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                    });
+                                </script>
+                            """, height=0, width=0)
+                            
+                        st.rerun()
+                
+                # User Input Section
+                if not session['is_complete']:
+                    st.markdown("---")
+                    st.write("🎙️ **Record your answer below:**")
+                    audio_input = mic_recorder(
+                        start_prompt="Click to Start Recording",
+                        stop_prompt="Click to Stop & Send",
+                        key='recorder',
+                        use_container_width=True
+                    )
+                    
+                    if audio_input:
+                        with st.spinner("Processing..."):
+                            transcript = audio_utils.transcribe_audio(audio_input['bytes'])
+                            session['transcript'].append({"role": "User", "text": transcript})
+                            
+                            # Process based on step
+                            if session['current_step'] == "greeting":
+                                session['current_step'] = "intro"
+                            elif session['current_step'].startswith('question_'):
+                                # Evaluate Answer
+                                q_text = session['transcript'][-2]['text']
+                                evaluation = interview_manager.evaluate_answer(q_text, transcript)
+                                # Append evaluation to transcript for report
+                                session['transcript'][-1].update(evaluation)
+                                
+                                session['question_index'] += 1
+                                if session['question_index'] >= session['target_length']:
+                                    session['current_step'] = "conclusion"
+                                else:
+                                    session['current_step'] = f"question_{session['question_index']}"
+                            
+                            st.rerun()
+            
+            # 3. Post Interview - Results Dashboard
+            elif 'interview' in st.session_state and st.session_state.interview.get('is_complete', False):
+                session = st.session_state.interview
+                st.success("🎉 Interview Completed!")
+                
+                # Store report in session state to avoid regeneration issues
+                if 'final_report_pdf' not in st.session_state:
+                    with st.spinner("Analyzing your performance and generating report..."):
+                        st.session_state.final_report_pdf = interview_manager.generate_pdf_report()
+                
+                # Show summary stats
+                total_q = session['target_length']
+                total_score = sum(item.get('score', 0) for item in session['transcript'] if item['role'] == "User")
+                avg_score = total_score / total_q if total_q > 0 else 0
+                
+                col_r1, col_r2, col_r3 = st.columns(3)
+                col_r1.metric("Average Score", f"{avg_score:.1f}/10")
+                col_r2.metric("Questions Faced", total_q)
+                col_r3.metric("Status", "Completed")
+                
+                st.download_button(
+                    label="📄 Download Detailed Performance Report (PDF)",
+                    data=st.session_state.final_report_pdf,
+                    file_name=f"interview_report_{session['company']}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True,
+                    type="primary"
+                )
+                
+                # Show full transcript with detailed feedback
+                with st.expander("👁️ View Full Transcript & Detailed Feedback", expanded=True):
+                    for item in session['transcript']:
+                        with st.chat_message(item['role'].lower()):
+                            st.write(item['text'])
+                            if item['role'] == "User" and 'score' in item:
+                                st.markdown(f"**Score:** {item['score']}/10")
+                                st.markdown(f"**Analysis:** {item['feedback']}")
+                                st.info(f"💡 **Tip:** {item.get('improvement', 'N/A')}")
+                
+                if st.button("🔄 Start New Interview", use_container_width=True):
+                    if 'final_report_pdf' in st.session_state:
+                        del st.session_state.final_report_pdf
+                    del st.session_state.interview
+                    if 'last_handled_step' in st.session_state:
+                        del st.session_state.last_handled_step
+                    st.rerun()
+
+            # 2. Setup Panel - Only show if no interview
+            else:
+                # Setup Panel
+                col_s1, col_s2, col_s3 = st.columns(3)
+                with col_s1:
+                    mock_role = st.text_input("Target Role", placeholder="e.g. Software Engineer", key="mock_role_input")
+                with col_s2:
+                    mock_company = st.text_input("Target Company", placeholder="e.g. Google", key="mock_company_input")
+                col_s3, col_s4 = st.columns([2, 1])
+                with col_s3:
+                    mock_length = st.slider("Number of Questions", 3, 8, 5)
+                with col_s4:
+                    continuous_mode = st.toggle("🔄 Continuous Listening", value=True, help="Automatically starts microphone after AI speaks")
+                
+                mock_lang = st.radio("Language Mode", ["English", "Hinglish"], horizontal=True)
+                
+                if st.button("🚀 Start Voice Interview", type="primary", use_container_width=True):
+                    if mock_role and mock_company:
+                        # Try to get scraped questions or use fallback
+                        from utils.interview_fetcher import InterviewFetcher
+                        fetcher = InterviewFetcher()
+                        with st.spinner("Preparing your interview board..."):
+                            questions, _, context = fetcher.fetch_all(mock_company, mock_role)
+                            interview_manager.initialize_session(questions or [], mock_role, mock_company, mock_length, mock_lang)
+                            st.session_state.interview['continuous_mode'] = continuous_mode
+                            st.rerun()
+                    else:
+                        st.warning("Please provide both role and company.")
 
         st.toast("Check out these repositories: [Awesome Java](https://github.com/Hunterdii/Awesome-Java)", icon="ℹ️")
 

@@ -17,12 +17,9 @@ class AIResumeAnalyzer:
         # Load environment variables
         load_dotenv()
         
-        # Configure Google Gemini AI
-        self.google_api_key = os.getenv("GOOGLE_API_KEY")
-        self.openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
-        
-        if self.google_api_key:
-            genai.configure(api_key=self.google_api_key)
+        # Setup the new LLM Orchestrator
+        from .llm_orchestrator import LLMOrchestrator
+        self.orchestrator = LLMOrchestrator()
     
     def extract_text_from_pdf(self, pdf_file):
         """Extract text from PDF using pdfplumber and OCR if needed"""
@@ -181,16 +178,12 @@ class AIResumeAnalyzer:
         os.unlink(temp_path)  # Clean up the temp file
         return text
     
-    def analyze_resume_with_gemini(self, resume_text, job_description=None, job_role=None):
-        """Analyze resume using Google Gemini AI"""
+    def analyze_resume(self, resume_text, job_description=None, job_role=None):
+        """Analyze resume using orchestrated LLMs (Gemini -> Groq -> Sarvam)"""
         if not resume_text:
             return {"error": "Resume text is required for analysis."}
         
-        if not self.google_api_key:
-            return {"error": "Google API key is not configured. Please add it to your .env file."}
-        
         try:
-            model = genai.GenerativeModel("gemini-2.5-flash")
             
             base_prompt = f"""
             You are an expert resume analyst with deep knowledge of industry standards, job requirements, and hiring practices across various fields. Your task is to provide a comprehensive, detailed analysis of the resume provided.
@@ -247,6 +240,12 @@ class AIResumeAnalyzer:
                 
                 Additionally, compare this resume to the following job description:
                 
+                ## Most Rare and Important Interview Questions
+                [Based on the provided job description, identify and list:
+                1. The most rare/unique interview questions an applicant might face.
+                2. The most important/critical interview questions for this specific role.
+                Explain why each question is important or what the interviewer is looking for.]
+
                 Job Description:
                 {job_description}
                 
@@ -257,8 +256,7 @@ class AIResumeAnalyzer:
                 [List specific requirements from the job description that are not addressed in the resume, with recommendations on how to address each gap]
                 """
             
-            response = model.generate_content(base_prompt)
-            analysis = response.text.strip()
+            analysis, provider = self.orchestrator.generate_content(base_prompt)
             
             # Extract resume score if present
             resume_score = self._extract_score_from_text(analysis)
@@ -269,7 +267,8 @@ class AIResumeAnalyzer:
             return {
                 "analysis": analysis,
                 "resume_score": resume_score,
-                "ats_score": ats_score
+                "ats_score": ats_score,
+                "model_used": provider
             }
         
         except Exception as e:
@@ -1213,7 +1212,7 @@ class AIResumeAnalyzer:
             
             # Choose the appropriate model for analysis
             if model == "Google Gemini":
-                result = self.analyze_resume_with_gemini(resume_text, job_description, job_role)
+                result = self.analyze_resume(resume_text, job_description, job_role)
                 model_used = "Google Gemini"
             elif model == "Anthropic Claude":
                 result = self.analyze_resume_with_anthropic(resume_text, job_description, job_role)
@@ -1221,7 +1220,7 @@ class AIResumeAnalyzer:
                 model_used = result.get("model_used", "Anthropic Claude")
             else:
                 # Default to Gemini if model not recognized
-                result = self.analyze_resume_with_gemini(resume_text, job_description, job_role)
+                result = self.analyze_resume(resume_text, job_description, job_role)
                 model_used = "Google Gemini"
             
             # Process the result to extract structured information
