@@ -1,0 +1,189 @@
+/* Import Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+
+/* Root Variables - Modern Premium Palette */
+:root {
+    --primary: #00f2fe;
+    --primary-alt: #4facfe;
+    --secondary: #7e22ce;
+    --accent: #f472b6;
+    --bg-main: #0a0c10;
+    --bg-card: rgba(23, 25, 35, 0.7);
+    --bg-glass: rgba(255, 255, 255, 0.03);
+    --border-glass: rgba(255, 255, 255, 0.1);
+    --text-main: #f8fafc;
+    --text-muted: #94a3b8;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --error: #ef4444;
+    --glow: 0 0 20px rgba(79, 209, 197, 0.3);
+}
+
+/* Global Styles */
+.stApp {
+    background-color: var(--bg-main) !important;
+    background-image: 
+        radial-gradient(at 0% 0%, rgba(79, 209, 197, 0.05) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(126, 34, 206, 0.05) 0px, transparent 50%);
+    font-family: 'Plus Jakarta Sans', sans-serif !important;
+}
+
+/* Glassmorphism Containers */
+.glass-card {
+    background: var(--bg-card);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--border-glass);
+    border-radius: 24px;
+    padding: 2rem;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-card:hover {
+    border-color: rgba(79, 209, 197, 0.4);
+    transform: translateY(-5px);
+    box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.5);
+}
+
+/* Typography Enhancements */
+h1, h2, h3 {
+    font-family: 'Outfit', sans-serif !important;
+    font-weight: 800 !important;
+    letter-spacing: -0.02em !important;
+}
+
+.header-title {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-alt) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    font-size: 3.5rem !important;
+    margin-bottom: 1rem !important;
+}
+
+/* Sidebar Customization */
+[data-testid="stSidebar"] {
+    background: rgba(10, 12, 16, 0.95) !important;
+    border-right: 1px solid var(--border-glass);
+}
+
+[data-testid="stSidebarNav"] {
+    padding-top: 2rem;
+}
+
+/* Input Fields - High End Modern Look */
+.stTextInput > div > div, .stSelectbox > div > div {
+    background: rgba(255, 255, 255, 0.05) !important;
+    border: 1px solid var(--border-glass) !important;
+    border-radius: 12px !important;
+    color: var(--text-main) !important;
+    padding: 4px 8px !important;
+    transition: all 0.3s ease !important;
+}
+
+.stTextInput > div > div:focus-within {
+    border-color: var(--primary) !important;
+    box-shadow: 0 0 15px rgba(0, 242, 254, 0.2) !important;
+}
+
+/* Button UI */
+.stButton > button {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-alt) 100%) !important;
+    color: #000 !important;
+    font-weight: 700 !important;
+    border: none !important;
+    border-radius: 12px !important;
+    padding: 0.6rem 2rem !important;
+    font-size: 1rem !important;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+.stButton > button:hover {
+    transform: scale(1.05) !important;
+    box-shadow: 0 0 25px rgba(0, 242, 254, 0.4) !important;
+}
+
+/* Metrics Dashboard Cards */
+.metric-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-glass);
+    border-radius: 20px;
+    padding: 1.5rem;
+    text-align: center;
+}
+
+.metric-label {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.metric-value {
+    color: var(--primary);
+    font-size: 2.5rem;
+    font-weight: 800;
+    margin-top: 0.5rem;
+}
+
+/* Feature Cards on Home */
+.feature-card {
+    padding: 2.5rem;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    background: linear-gradient(145deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%);
+}
+
+.feature-icon {
+    font-size: 3rem;
+    margin-bottom: 1.5rem;
+    background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+/* Profile Section for Recruiter */
+.candidate-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-glass);
+    border-radius: 20px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    transition: all 0.3s ease;
+}
+
+.candidate-card:hover {
+    border-color: var(--secondary);
+    background: rgba(126, 34, 206, 0.1);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 6px;
+}
+::-webkit-scrollbar-track {
+    background: var(--bg-main);
+}
+::-webkit-scrollbar-thumb {
+    background: var(--border-glass);
+    border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: var(--primary);
+}
+
+/* Animations */
+@keyframes pulse-glow {
+    0% { box-shadow: 0 0 10px rgba(0, 242, 254, 0.2); }
+    50% { box-shadow: 0 0 25px rgba(0, 242, 254, 0.4); }
+    100% { box-shadow: 0 0 10px rgba(0, 242, 254, 0.2); }
+}
+
+.glow-effect {
+    animation: pulse-glow 3s infinite;
+}
