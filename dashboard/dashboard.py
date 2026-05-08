@@ -153,7 +153,8 @@ class DashboardManager:
         with col_c1:
             st.markdown('<div class="chart-wrapper">', unsafe_allow_html=True)
             days, counts = self.get_weekly_trends()
-            fig = px.line(x=days, y=counts, title="Submission Volume", 
+            trend_df = pd.DataFrame({"Day": days, "Resumes": counts})
+            fig = px.line(trend_df, x="Day", y="Resumes", title="Submission Volume", 
                           markers=True, line_shape="spline",
                           color_discrete_sequence=['#00f2fe'])
             fig.update_layout(

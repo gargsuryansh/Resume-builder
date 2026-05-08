@@ -14,6 +14,17 @@ services:
       - SELENIUM_URL=http://selenium:4444/wd/hub
     volumes:
       - ./.env:/app/.env
+      - ./app.py:/app/app.py
+      - ./dashboard:/app/dashboard
+      - ./config:/app/config
+      - ./ui_components.py:/app/ui_components.py
+      - ./assets:/app/assets
+      - ./feedback:/app/feedback
+      - ./jobs:/app/jobs
+      - ./resume_analytics:/app/resume_analytics
+      - ./style:/app/style
+      - ./utils:/app/utils
+      - ./run_app.py:/app/run_app.py
     restart: unless-stopped
     depends_on:
       - selenium
